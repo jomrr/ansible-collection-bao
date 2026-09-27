@@ -234,6 +234,6 @@
             quiet: true
 
     - name: Close the session
-      jomrr.bao.token_revoke: {}
+      jomrr.bao.logout: {}
       check_mode: false
       changed_when: false

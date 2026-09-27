@@ -40,6 +40,7 @@ ansible-galaxy collection install jomrr.bao
 | [`jomrr.bao.approle_secret_id`](plugins/modules/approle_secret_id.py) | yes | yes | Register or revoke a custom Secret ID |
 | [`jomrr.bao.kv2_secret`](plugins/modules/kv2_secret.py) | yes | yes | Manage KV version 2 secret data |
 | [`jomrr.bao.login`](plugins/modules/login.py) | no (action) | yes | Log in with an AppRole and return a session token |
+| [`jomrr.bao.logout`](plugins/modules/logout.py) | no (action) | yes | Revoke the session token |
 | [`jomrr.bao.mount`](plugins/modules/mount.py) | yes | yes | Manage auth and secrets mounts |
 | [`jomrr.bao.pki_acme`](plugins/modules/pki_acme.py) | yes | yes | Manage the ACME configuration of a PKI engine |
 | [`jomrr.bao.pki_acme_eab`](plugins/modules/pki_acme_eab.py) | no (action) | yes | Create an ACME external account binding key |
@@ -51,7 +52,6 @@ ansible-galaxy collection install jomrr.bao
 | [`jomrr.bao.policy`](plugins/modules/policy.py) | yes | yes | Manage ACL policies |
 | [`jomrr.bao.ssh_ca`](plugins/modules/ssh_ca.py) | yes (public key) | yes | Generate or import the SSH certificate authority key |
 | [`jomrr.bao.ssh_role`](plugins/modules/ssh_role.py) | yes | yes | Manage SSH certificate roles |
-| [`jomrr.bao.token_revoke`](plugins/modules/token_revoke.py) | no (action) | yes | Revoke the session token |
 | [`jomrr.bao.userpass_user`](plugins/modules/userpass_user.py) | yes | yes | Manage userpass users |
 
 ### Documentation Fragments
@@ -78,7 +78,7 @@ ansible-galaxy collection install jomrr.bao
 Every module takes `url`, `token`, `ca_file` and `timeout`. TLS verification is always
 enabled; `ca_file` selects the trust anchor when the server certificate is not in the
 system trust store. Obtain a session once per run with `jomrr.bao.login`, keep the token
-in a fact with `no_log`, and revoke it at the end with `jomrr.bao.token_revoke`:
+in a fact with `no_log`, and revoke it at the end with `jomrr.bao.logout`:
 
 ```yaml
 - name: Open an OpenBao session
@@ -101,7 +101,7 @@ in a fact with `no_log`, and revoke it at the end with `jomrr.bao.token_revoke`:
 Set the connection options once through `module_defaults` for the collection's action
 group `group/jomrr.bao.all` and pass only the resource options to each task. `login` is
 not part of the group because it takes no token; give it `url` and `ca_file` directly.
-Revoke the session in an `always` block with `jomrr.bao.token_revoke`.
+Revoke the session in an `always` block with `jomrr.bao.logout`.
 
 ## Ordering
 

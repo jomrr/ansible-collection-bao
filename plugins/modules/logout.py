@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # GNU General Public License v3.0+
 # (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
-"""Revoke the OpenBao session token."""
+"""Log out of OpenBao by revoking the session token."""
 
 from __future__ import annotations
 
 DOCUMENTATION = r"""
-module: token_revoke
+module: logout
 short_description: Revoke the session token
 version_added: 0.1.0
 description:
@@ -20,7 +20,7 @@ options: {}
 
 EXAMPLES = r"""
 - name: Close the OpenBao session
-  jomrr.bao.token_revoke:
+  jomrr.bao.logout:
     url: https://bao.example.test:8200
     ca_file: /etc/pki/tls/certs/bao-ca.pem
     token: "{{ bao_token }}"
@@ -42,7 +42,7 @@ from ansible_collections.jomrr.bao.plugins.module_utils._module import run_modul
 
 def main() -> None:
     """Run the module."""
-    run_module({}, _session.revoke)
+    run_module({}, _session.logout)
 
 
 if __name__ == "__main__":

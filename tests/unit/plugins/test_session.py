@@ -2,14 +2,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # GNU General Public License v3.0+
 # (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
-"""Login and token revocation actions."""
+"""Login and logout actions."""
 
 from __future__ import annotations
 
 import unittest
 
 from ansible_collections.jomrr.bao.plugins.module_utils.client import BaoError
-from ansible_collections.jomrr.bao.plugins.modules import login, token_revoke
+from ansible_collections.jomrr.bao.plugins.modules import login, logout
 from ansible_collections.jomrr.bao.tests.unit.plugins.support import (
     FakeClient,
     run_module_under_test,
@@ -65,13 +65,13 @@ class SessionTests(unittest.TestCase):
         self.assertNotIn("recognizable-secret", result["msg"])
         self.assertIn("HTTP 400", result["msg"])
 
-    def test_revoke(self) -> None:
+    def test_logout(self) -> None:
         """Revocation uses the connection token and skips the call in check mode."""
         client = FakeClient()
-        self.assertTrue(run_module_under_test(token_revoke, {}, client)["changed"])
+        self.assertTrue(run_module_under_test(logout, {}, client)["changed"])
         self.assertEqual(
             client.calls, [("POST", "auth/token/revoke-self", {"token": "fake-token"})]
         )
         client = FakeClient()
-        run_module_under_test(token_revoke, {}, client, check_mode=True)
+        run_module_under_test(logout, {}, client, check_mode=True)
         self.assertEqual(client.calls, [])

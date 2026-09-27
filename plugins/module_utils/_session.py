@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # GNU General Public License v3.0+
 # (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
-"""Session actions: AppRole login and token revocation; not a public API."""
+"""Session actions: AppRole login and logout; not a public API."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def login(params: dict[str, Any], check_mode: bool, client: Api) -> dict[str, An
     )
 
 
-def revoke(params: dict[str, Any], check_mode: bool, client: Api) -> dict[str, Any]:
+def logout(params: dict[str, Any], check_mode: bool, client: Api) -> dict[str, Any]:
     """Revoke the session token given as the connection token."""
     del params
     if check_mode:
