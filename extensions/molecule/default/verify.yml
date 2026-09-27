@@ -1,0 +1,176 @@
+---
+- name: Verify the converged OpenBao configuration
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ bao_test_root_token }}"
+    ansible.builtin.uri:
+      ca_path: "{{ bao_test_ca_file }}"
+      headers:
+        X-Vault-Token: "{{ bao_test_root_token }}"
+      body_format: json
+      use_netrc: false
+      follow_redirects: none
+  vars:
+    bao_url: "{{ bao_test_url }}"
+    bao_ca_file: "{{ bao_test_ca_file }}"
+    bao_token: "{{ bao_test_root_token }}"
+  tasks:
+    - name: Read the repaired resources
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/{{ item }}"
+      loop:
+        - sys/policies/acl/reader
+        - auth/approle/role/application
+        - auth/approle/role/application/role-id
+        - kv/data/app/managed
+        - pki-int/roles/web-server
+        - pki-int/config/issuers
+        - pki-int/issuer/intermediate
+        - ssh/roles/hosts
+        - ssh/config/ca
+        - sys/mounts
+      register: bao_test_read
+      no_log: true
+
+    - name: Verify drift repair and preservation
+      ansible.builtin.assert:
+        that:
+          - bao_test_read.results[0].json.data.policy is search('"read"')
+          - bao_test_read.results[1].json.data.token_ttl == 900
+          - bao_test_read.results[1].json.data.token_policies == ['application']
+          - bao_test_read.results[2].json.data.role_id == 'application'
+          - bao_test_read.results[3].json.data.data.username == 'application'
+          - "bao_test_read.results[3].json.data.data.nested == {'desired': true}"
+          - bao_test_read.results[3].json.data.data.additional == 'preserved'
+          - bao_test_read.results[3].json.data.data.password | length == 40
+          - bao_test_read.results[3].json.data.data.password == lookup('ansible.builtin.file', bao_test_ca_file | dirname ~ '/generated-password')
+          - bao_test_read.results[4].json.data.ttl == 2592000
+          - bao_test_read.results[4].json.data.allow_subdomains
+          - bao_test_read.results[4].json.data.ext_key_usage_oids == []
+          - bao_test_read.results[5].json.data.default == bao_test_read.results[6].json.data.issuer_id
+          - bao_test_read.results[6].json.data.issuing_certificates | length == 1
+          - bao_test_read.results[7].json.data.allowed_domains == 'example.test'
+          - bao_test_read.results[7].json.data.ttl == 2592000
+          - bao_test_read.results[8].json.data.public_key is search('ssh-ed25519')
+          - bao_test_read.results[9].json.data['kv/'].description == 'Application secrets'
+          - "'unrelated/' in bao_test_read.results[9].json.data"
+        quiet: true
+
+    - name: Verify the lookup with the session variables
+      ansible.builtin.assert:
+        that:
+          - lookup('jomrr.bao.kv2', 'app/managed', mount='kv', key='username') == 'application'
+          - lookup('jomrr.bao.kv2', 'app/managed', mount='kv') | dict2items | map(attribute='key') | sort == ['additional', 'nested', 'password', 'username']
+          - query('jomrr.bao.kv2', 'app/managed', 'app/managed', mount='kv', key='username') == ['application', 'application']
+        quiet: true
+
+    - name: Read a missing key through the lookup
+      ansible.builtin.debug:
+        msg: "{{ lookup('jomrr.bao.kv2', 'app/managed', mount='kv', key='missing') }}"
+      register: bao_test_lookup_missing
+      ignore_errors: true
+
+    - name: Verify the lookup error names mount and path only
+      ansible.builtin.assert:
+        that:
+          - bao_test_lookup_missing is failed
+          - "'kv/app/managed' in bao_test_lookup_missing.msg"
+          - "'application' not in bao_test_lookup_missing.msg"
+        quiet: true
+
+    - name: Repeat the authority and signing key actions
+      block:
+        - name: Repeat the root authority
+          jomrr.bao.pki_ca:
+            mount: pki-root
+            issuer_name: root
+            type: root
+            common_name: Molecule Root CA
+          register: bao_test_root_again
+
+        - name: Repeat the SSH signing key
+          jomrr.bao.ssh_ca:
+            mount: ssh
+          register: bao_test_ssh_again
+
+        - name: Verify the idempotent actions
+          ansible.builtin.assert:
+            that:
+              - bao_test_root_again is not changed
+              - bao_test_root_again.certificate is search('BEGIN CERTIFICATE')
+              - bao_test_ssh_again is not changed
+              - bao_test_ssh_again.public_key == bao_test_read.results[8].json.data.public_key
+            quiet: true
+
+    - name: Rotate the CRL
+      jomrr.bao.pki_crl_rotate:
+        mount: pki-int
+      register: bao_test_crl
+
+    - name: Create an ACME account binding
+      jomrr.bao.pki_acme_eab:
+        mount: pki-int
+        role: web-server
+      register: bao_test_eab
+      no_log: true
+
+    - name: Verify the actions
+      ansible.builtin.assert:
+        that:
+          - bao_test_crl is changed
+          - bao_test_crl.success
+          - bao_test_eab is changed
+          - bao_test_eab.id | length > 0
+          - bao_test_eab.key | length > 0
+        quiet: true
+
+    - name: Create a disposable secret and soft delete its version
+      block:
+        - name: Create the disposable secret
+          jomrr.bao.kv2_secret:
+            mount: kv
+            path: app/disposable
+            data: {value: original}
+
+        - name: Soft delete the current version
+          ansible.builtin.uri:
+            url: "{{ bao_test_url }}/v1/kv/data/app/disposable"
+            method: DELETE
+            status_code: 204
+
+        - name: Attempt to regenerate the deleted secret
+          jomrr.bao.kv2_secret:
+            mount: kv
+            path: app/disposable
+            generate: {value: {}}
+          register: bao_test_tombstone
+          ignore_errors: true
+
+        - name: Remove the disposable secret twice
+          jomrr.bao.kv2_secret:
+            mount: kv
+            path: app/disposable
+            state: absent
+          register: bao_test_removal
+          loop: [first, repeated]
+
+        - name: Verify the tombstone guard and removal
+          ansible.builtin.assert:
+            that:
+              - bao_test_tombstone is failed
+              - "'no readable current version' in bao_test_tombstone.msg"
+              - bao_test_removal.results[0] is changed
+              - bao_test_removal.results[1] is not changed
+            quiet: true
+
+    - name: Verify check mode did not create resources
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/{{ item }}"
+        status_code: 404
+      loop:
+        - kv/metadata/app/check-only
+        - auth/users/users/check-only

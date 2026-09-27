@@ -1,0 +1,29 @@
+---
+- name: Prepare the OpenBao dev server fixtures
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Read the dev CA certificate from the container
+      containers.podman.podman_container_exec:
+        name: "{{ bao_test_container }}"
+        argv: [cat, /tmp/vault-ca.pem]
+      register: bao_test_ca
+      until: bao_test_ca is succeeded and 'BEGIN CERTIFICATE' in bao_test_ca.stdout
+      retries: 15
+      delay: 2
+      changed_when: false
+
+    - name: Store the CA certificate for the controller
+      ansible.builtin.copy:
+        content: "{{ bao_test_ca.stdout }}\n"
+        dest: "{{ bao_test_ca_file }}"
+        mode: "0600"
+
+    - name: Wait for an unsealed server
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/sys/health"
+        ca_path: "{{ bao_test_ca_file }}"
+      register: bao_test_health
+      until: bao_test_health.status == 200
+      retries: 20
+      delay: 2

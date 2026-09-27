@@ -1,0 +1,20 @@
+---
+requires_ansible: '>=2.20.0,<2.21.0'
+action_groups:
+  all:
+    - token_revoke
+    - policy
+    - mount
+    - approle
+    - approle_secret_id
+    - userpass_user
+    - kv2_secret
+    - pki_config
+    - pki_role
+    - pki_issuer
+    - pki_acme
+    - pki_ca
+    - pki_crl_rotate
+    - pki_acme_eab
+    - ssh_ca
+    - ssh_role

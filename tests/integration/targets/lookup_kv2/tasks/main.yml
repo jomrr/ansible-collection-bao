@@ -1,0 +1,33 @@
+---
+- name: Fail for an unreachable server without exposing the token
+  ansible.builtin.debug:
+    msg: "{{ lookup('jomrr.bao.kv2', 'app/db', mount='kv') }}"
+  vars:
+    bao_url: https://127.0.0.1:1
+    bao_token: synthetic-test-token
+  register: bao_test_lookup_offline
+  ignore_errors: true
+
+- name: Fail without connection settings
+  ansible.builtin.debug:
+    msg: "{{ lookup('jomrr.bao.kv2', 'app/db', mount='kv') }}"
+  register: bao_test_lookup_unconfigured
+  ignore_errors: true
+
+- name: Fail for a plain http URL
+  ansible.builtin.debug:
+    msg: "{{ lookup('jomrr.bao.kv2', 'app/db', mount='kv', url='http://bao.example.test', token='synthetic-test-token') }}"
+  register: bao_test_lookup_http
+  ignore_errors: true
+
+- name: Verify lookup error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_lookup_offline is failed
+      - "'kv/app/db' in bao_test_lookup_offline.msg"
+      - "'synthetic-test-token' not in bao_test_lookup_offline.msg"
+      - bao_test_lookup_unconfigured is failed
+      - "'bao_url' in bao_test_lookup_unconfigured.msg"
+      - bao_test_lookup_http is failed
+      - "'https' in bao_test_lookup_http.msg"
+    quiet: true

@@ -1,0 +1,42 @@
+---
+- name: Exercise the installed jomrr.bao collection
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check login
+      ansible.builtin.import_tasks: targets/login/tasks/main.yml
+    - name: Check token_revoke
+      ansible.builtin.import_tasks: targets/token_revoke/tasks/main.yml
+    - name: Check policy
+      ansible.builtin.import_tasks: targets/policy/tasks/main.yml
+    - name: Check mount
+      ansible.builtin.import_tasks: targets/mount/tasks/main.yml
+    - name: Check approle
+      ansible.builtin.import_tasks: targets/approle/tasks/main.yml
+    - name: Check approle_secret_id
+      ansible.builtin.import_tasks: targets/approle_secret_id/tasks/main.yml
+    - name: Check userpass_user
+      ansible.builtin.import_tasks: targets/userpass_user/tasks/main.yml
+    - name: Check kv2_secret
+      ansible.builtin.import_tasks: targets/kv2_secret/tasks/main.yml
+    - name: Check pki_config
+      ansible.builtin.import_tasks: targets/pki_config/tasks/main.yml
+    - name: Check pki_role
+      ansible.builtin.import_tasks: targets/pki_role/tasks/main.yml
+    - name: Check pki_issuer
+      ansible.builtin.import_tasks: targets/pki_issuer/tasks/main.yml
+    - name: Check pki_acme
+      ansible.builtin.import_tasks: targets/pki_acme/tasks/main.yml
+    - name: Check pki_ca
+      ansible.builtin.import_tasks: targets/pki_ca/tasks/main.yml
+    - name: Check pki_crl_rotate
+      ansible.builtin.import_tasks: targets/pki_crl_rotate/tasks/main.yml
+    - name: Check pki_acme_eab
+      ansible.builtin.import_tasks: targets/pki_acme_eab/tasks/main.yml
+    - name: Check ssh_ca
+      ansible.builtin.import_tasks: targets/ssh_ca/tasks/main.yml
+    - name: Check ssh_role
+      ansible.builtin.import_tasks: targets/ssh_role/tasks/main.yml
+    - name: Check lookup_kv2
+      ansible.builtin.import_tasks: targets/lookup_kv2/tasks/main.yml

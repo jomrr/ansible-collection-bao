@@ -1,0 +1,53 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.pki_config:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+    mount: pki
+    crl: &id001
+      expiry: 72h
+  register: bao_test_pki_config_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.pki_config:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: pki
+    crl: *id001
+  register: bao_test_pki_config_offline
+  ignore_errors: true
+
+- name: Reject an invalid argument combination
+  jomrr.bao.pki_config:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: pki
+  register: bao_test_pki_config_invalid
+  ignore_errors: true
+
+- name: Fail on an unreachable server in check mode
+  jomrr.bao.pki_config:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: pki
+    crl: *id001
+  register: bao_test_pki_config_check
+  check_mode: true
+  ignore_errors: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_pki_config_url is failed
+      - "'https' in bao_test_pki_config_url.msg"
+      - bao_test_pki_config_offline is failed
+      - "'failed' in bao_test_pki_config_offline.msg"
+      - "'synthetic-test-token' not in bao_test_pki_config_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_pki_config_offline.msg"
+      - bao_test_pki_config_invalid is failed
+      - "'synthetic-test-token' not in bao_test_pki_config_invalid.msg"
+      - "'synthetic-test-secret' not in bao_test_pki_config_invalid.msg"
+      - bao_test_pki_config_check is failed
+      - bao_test_pki_config_check is not changed
+    quiet: true

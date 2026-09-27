@@ -1,0 +1,37 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.pki_crl_rotate:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+    mount: pki
+  register: bao_test_pki_crl_rotate_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.pki_crl_rotate:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: pki
+  register: bao_test_pki_crl_rotate_offline
+  ignore_errors: true
+
+- name: Report the pending action in check mode without connecting
+  jomrr.bao.pki_crl_rotate:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: pki
+  register: bao_test_pki_crl_rotate_check
+  check_mode: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_pki_crl_rotate_url is failed
+      - "'https' in bao_test_pki_crl_rotate_url.msg"
+      - bao_test_pki_crl_rotate_offline is failed
+      - "'failed' in bao_test_pki_crl_rotate_offline.msg"
+      - "'synthetic-test-token' not in bao_test_pki_crl_rotate_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_pki_crl_rotate_offline.msg"
+      - bao_test_pki_crl_rotate_check is changed
+      - "'Would' in bao_test_pki_crl_rotate_check.msg"
+    quiet: true

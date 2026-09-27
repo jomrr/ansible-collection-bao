@@ -1,0 +1,65 @@
+---
+- name: Introduce configuration drift with the root token
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ bao_test_root_token }}"
+  vars:
+    bao_url: "{{ bao_test_url }}"
+    bao_ca_file: "{{ bao_test_ca_file }}"
+    bao_token: "{{ bao_test_root_token }}"
+  tasks:
+    - name: Preserve the generated password for verification
+      ansible.builtin.copy:
+        content: "{{ lookup('jomrr.bao.kv2', 'app/managed', mount='kv', key='password') }}"
+        dest: "{{ bao_test_ca_file | dirname }}/generated-password"
+        mode: "0600"
+      no_log: true
+
+    - name: Change managed resources
+      jomrr.bao.policy:
+        name: reader
+        rules: 'path "kv/data/app/*" { capabilities = ["deny"] }'
+
+    - name: Change the application AppRole
+      jomrr.bao.approle:
+        name: application
+        role_id: changed-application
+        token_policies: [reader]
+        token_ttl: 5m
+
+    - name: Change the KV data and add an unmanaged key
+      jomrr.bao.kv2_secret:
+        mount: kv
+        path: app/managed
+        data:
+          username: drift
+          nested: {undesired: true}
+          additional: preserved
+
+    - name: Change the certificate template and the SSH role
+      jomrr.bao.pki_role:
+        mount: pki-int
+        name: web-server
+        ttl: 1h
+        allow_subdomains: false
+
+    - name: Change the SSH host role
+      jomrr.bao.ssh_role:
+        mount: ssh
+        name: hosts
+        allow_host_certificates: true
+        allowed_domains: [drift.test]
+        ttl: 1h
+
+    - name: Change a mount description and add an unrelated mount
+      jomrr.bao.mount:
+        path: "{{ item.path }}"
+        type: kv
+        description: "{{ item.description }}"
+      loop:
+        - {path: kv, description: Changed description}
+        - {path: unrelated, description: Unmanaged mount}

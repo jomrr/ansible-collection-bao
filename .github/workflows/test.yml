@@ -1,0 +1,64 @@
+---
+name: Collection tests
+"on":
+  workflow_call:
+    inputs:
+      full:
+        description: Run integration and installed-package gates after the fast checks
+        type: boolean
+        required: false
+        default: false
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ansible: "2.20.*"
+            python: "3.12"
+            group: "ansible-2-20"
+    env:
+      ANSIBLE_GROUP: ${{ matrix.group }}
+      ANSIBLE_TEST_PREFER_PODMAN: ''
+      ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
+
+    defaults:
+      run:
+        working-directory: ansible_collections/jomrr/bao
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          path: ansible_collections/jomrr/bao
+      - name: Verify container engines
+        run: |
+          docker version
+          docker info
+          podman version
+          podman info
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+          cache-dependency-glob: ansible_collections/jomrr/bao/pyproject.toml
+      - name: Install tools from pyproject.toml
+        run: make sync PYTHON_VERSION=${{ matrix.python }}
+      - name: Collection and embedded role hooks
+        run: make hooks
+      - name: Sanity
+        run: .venv/bin/ansible-test sanity --docker --python ${{ matrix.python }}
+      - name: Units
+        if: hashFiles('ansible_collections/jomrr/bao/tests/unit/**') != ''
+        run: .venv/bin/ansible-test units --docker --python ${{ matrix.python }}
+      - name: Module and plugin integration
+        if: inputs.full && hashFiles('ansible_collections/jomrr/bao/tests/integration/targets/**') != ''
+        run: .venv/bin/ansible-test integration --docker --python ${{ matrix.python }}
+      - name: Collection FQCN integration, idempotence and check mode
+        if: inputs.full
+        run: .venv/bin/molecule test --all
+      - name: Test the installed package outside the source checkout
+        if: inputs.full
+        run: make package-test

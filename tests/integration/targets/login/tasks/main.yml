@@ -1,0 +1,40 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.login:
+    url: http://bao.example.test:8200
+    mount: ansible
+    role_id: synthetic-role
+    secret_id: synthetic-test-secret
+  register: bao_test_login_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.login:
+    url: https://127.0.0.1:1
+    mount: ansible
+    role_id: synthetic-role
+    secret_id: synthetic-test-secret
+  register: bao_test_login_offline
+  ignore_errors: true
+
+- name: Report the pending action in check mode without connecting
+  jomrr.bao.login:
+    url: https://127.0.0.1:1
+    mount: ansible
+    role_id: synthetic-role
+    secret_id: synthetic-test-secret
+  register: bao_test_login_check
+  check_mode: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_login_url is failed
+      - "'https' in bao_test_login_url.msg"
+      - bao_test_login_offline is failed
+      - "'failed' in bao_test_login_offline.msg"
+      - "'synthetic-test-token' not in bao_test_login_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_login_offline.msg"
+      - bao_test_login_check is changed
+      - "'Would' in bao_test_login_check.msg"
+    quiet: true

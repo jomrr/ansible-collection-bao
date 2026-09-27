@@ -1,0 +1,53 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.ssh_ca:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+    mount: ssh
+    key_type: ed25519
+  register: bao_test_ssh_ca_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.ssh_ca:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: ssh
+    key_type: ed25519
+  register: bao_test_ssh_ca_offline
+  ignore_errors: true
+
+- name: Reject an invalid argument combination
+  jomrr.bao.ssh_ca:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: ssh
+    private_key: synthetic-test-secret
+  register: bao_test_ssh_ca_invalid
+  ignore_errors: true
+
+- name: Fail on an unreachable server in check mode
+  jomrr.bao.ssh_ca:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: ssh
+    key_type: ed25519
+  register: bao_test_ssh_ca_check
+  check_mode: true
+  ignore_errors: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_ssh_ca_url is failed
+      - "'https' in bao_test_ssh_ca_url.msg"
+      - bao_test_ssh_ca_offline is failed
+      - "'failed' in bao_test_ssh_ca_offline.msg"
+      - "'synthetic-test-token' not in bao_test_ssh_ca_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_ssh_ca_offline.msg"
+      - bao_test_ssh_ca_invalid is failed
+      - "'synthetic-test-token' not in bao_test_ssh_ca_invalid.msg"
+      - "'synthetic-test-secret' not in bao_test_ssh_ca_invalid.msg"
+      - bao_test_ssh_ca_check is failed
+      - bao_test_ssh_ca_check is not changed
+    quiet: true

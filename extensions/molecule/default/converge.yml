@@ -1,0 +1,239 @@
+---
+- name: Converge OpenBao configuration with the jomrr.bao modules
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ bao_token }}"
+  tasks:
+    - name: Start with the dev root token
+      ansible.builtin.set_fact:
+        bao_token: "{{ bao_test_root_token }}"
+      no_log: true
+
+    - name: Enable the KV version 2 store
+      jomrr.bao.mount:
+        path: kv
+        type: kv
+        description: Application secrets
+
+    - name: Enable the authentication methods
+      jomrr.bao.mount:
+        path: "{{ item.path }}"
+        kind: auth
+        type: "{{ item.type }}"
+        default_lease_ttl: 1h
+        max_lease_ttl: 24h
+      loop:
+        - {path: approle, type: approle}
+        - {path: users, type: userpass}
+
+    - name: Enable the PKI and SSH engines
+      jomrr.bao.mount:
+        path: "{{ item.path }}"
+        type: "{{ item.type }}"
+        max_lease_ttl: "{{ item.max_lease_ttl }}"
+      loop:
+        - {path: pki-root, type: pki, max_lease_ttl: 87600h}
+        - {path: pki-int, type: pki, max_lease_ttl: 43800h}
+        - {path: ssh, type: ssh, max_lease_ttl: 8760h}
+
+    - name: Write the ACL policies
+      jomrr.bao.policy:
+        name: "{{ item.name }}"
+        rules: "{{ item.rules }}"
+      loop:
+        - name: admin
+          rules: 'path "*" { capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"] }'
+        - name: reader
+          rules: 'path "kv/data/app/*" { capabilities = ["read"] }'
+        - name: application
+          rules: 'path "kv/data/app/*" { capabilities = ["create", "read", "update"] }'
+
+    - name: Create the AppRoles
+      jomrr.bao.approle:
+        name: "{{ item.name }}"
+        role_id: "{{ item.name }}"
+        token_policies: "{{ item.policies }}"
+        token_ttl: "{{ item.ttl }}"
+        token_max_ttl: 4h
+        secret_id_bound_cidrs: "{{ item.cidrs | default(omit) }}"
+        token_bound_cidrs: "{{ item.cidrs | default(omit) }}"
+      loop:
+        - {name: molecule-admin, policies: [admin], ttl: 1h}
+        - {name: application, policies: [application], ttl: 15m}
+        - {name: restricted, policies: [reader], ttl: 15m, cidrs: [192.0.2.0/24, 198.51.100.0/24]}
+
+    - name: Register and verify the administration Secret ID
+      jomrr.bao.approle_secret_id:
+        role: molecule-admin
+        role_id: molecule-admin
+        secret_id: molecule-admin-secret-id-not-for-production
+        verify: true
+
+    - name: Log in as the administration AppRole
+      jomrr.bao.login:
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
+        role_id: molecule-admin
+        secret_id: molecule-admin-secret-id-not-for-production
+      register: bao_login
+      no_log: true
+      check_mode: false
+      changed_when: false
+
+    - name: Continue with the session token
+      ansible.builtin.set_fact:
+        bao_token: "{{ bao_login.token }}"
+      no_log: true
+
+    - name: Create the root authority
+      jomrr.bao.pki_ca:
+        mount: pki-root
+        issuer_name: root
+        type: root
+        key_name: root-key
+        common_name: Molecule Root CA
+        ttl: 87600h
+        max_path_length: 1
+
+    - name: Create the intermediate authority signed by the root
+      jomrr.bao.pki_ca:
+        mount: pki-int
+        issuer_name: intermediate
+        type: intermediate
+        key_name: intermediate-key
+        common_name: Molecule Issuing CA
+        signing_mount: pki-root
+        signing_issuer: root
+        signing_ttl: 43800h
+        max_path_length: 0
+
+    - name: Configure the issuing engine
+      jomrr.bao.pki_config:
+        mount: pki-int
+        urls:
+          issuing_certificates: ["{{ bao_test_url }}/v1/pki-int/ca"]
+          crl_distribution_points: ["{{ bao_test_url }}/v1/pki-int/crl"]
+        crl:
+          expiry: 72h
+          auto_rebuild: true
+          auto_rebuild_grace_period: 12h
+        cluster:
+          path: "{{ bao_test_url }}/v1/pki-int"
+          aia_path: "{{ bao_test_url }}/v1/pki-int"
+
+    - name: Publish the intermediate as default issuer
+      jomrr.bao.pki_issuer:
+        mount: pki-int
+        name: intermediate
+        default: true
+        issuing_certificates: ["{{ bao_test_url }}/v1/pki-int/issuer/intermediate/der"]
+        usage: [read-only, issuing-certificates, crl-signing, ocsp-signing]
+
+    - name: Create the certificate templates
+      jomrr.bao.pki_role:
+        mount: pki-int
+        name: "{{ item.name }}"
+        allowed_domains: [example.test]
+        allow_subdomains: true
+        server_flag: "{{ item.server }}"
+        client_flag: "{{ item.client }}"
+        ext_key_usage_oids: "{{ item.oids }}"
+        allowed_other_sans: "{{ item.other_sans | default(omit) }}"
+        policy_identifiers: "{{ item.policies | default(omit) }}"
+        ttl: 720h
+        max_ttl: 8760h
+      loop:
+        - {name: web-server, server: true, client: false, oids: []}
+        - name: smartcard-logon
+          server: false
+          client: true
+          oids: ["1.3.6.1.4.1.311.20.2.2"]
+          other_sans: ["1.3.6.1.4.1.311.20.2.3;UTF8:*@example.test"]
+          policies: ["1.3.6.1.4.1.311.21.8.1"]
+
+    - name: Enable ACME with mandatory account binding
+      jomrr.bao.pki_acme:
+        mount: pki-int
+        enabled: true
+        allowed_roles: [web-server]
+        default_directory_policy: role:web-server
+        eab_policy: always-required
+
+    - name: Generate the SSH signing key
+      jomrr.bao.ssh_ca:
+        mount: ssh
+        key_type: ed25519
+
+    - name: Create the SSH certificate roles
+      jomrr.bao.ssh_role:
+        mount: ssh
+        name: "{{ item.name }}"
+        allow_host_certificates: "{{ item.hosts }}"
+        allow_user_certificates: "{{ not item.hosts }}"
+        allowed_domains: "{{ item.domains | default(omit) }}"
+        allowed_users: "{{ item.users | default(omit) }}"
+        default_user: "{{ item.default_user | default(omit) }}"
+        default_extensions: "{{ item.extensions | default(omit) }}"
+        allow_subdomains: "{{ item.hosts }}"
+        algorithm_signer: rsa-sha2-512
+        ttl: "{{ item.ttl }}"
+        max_ttl: 8760h
+      loop:
+        - {name: hosts, hosts: true, domains: [example.test], ttl: 720h}
+        - {name: admins, hosts: false, users: [root, admin], default_user: admin, extensions: {permit-pty: ""}, ttl: 8h}
+
+    - name: Create the break-glass operator
+      jomrr.bao.userpass_user:
+        mount: users
+        name: operator
+        password: molecule-operator-password-not-for-production
+        token_policies: [reader]
+        token_ttl: 30m
+      no_log: true
+
+    - name: Provide the application secret with a generated password
+      jomrr.bao.kv2_secret:
+        mount: kv
+        path: app/managed
+        data:
+          username: application
+          nested: {desired: true}
+        generate:
+          password: {length: 40, chars: [ascii_letters, digits]}
+
+    - name: Predict new resources in check mode without creating them
+      when: ansible_check_mode
+      block:
+        - name: Predict a generated KV secret
+          jomrr.bao.kv2_secret:
+            mount: kv
+            path: app/check-only
+            generate: {password: {}}
+          register: bao_test_check_kv
+
+        - name: Predict a new break-glass user
+          jomrr.bao.userpass_user:
+            mount: users
+            name: check-only
+            password: check-only-password-not-for-production
+            token_policies: [reader]
+          register: bao_test_check_user
+          no_log: true
+
+        - name: Verify the predictions
+          ansible.builtin.assert:
+            that:
+              - bao_test_check_kv is changed
+              - bao_test_check_kv.version == 1
+              - bao_test_check_kv.diff.after['keys'] == ['password']
+              - bao_test_check_user is changed
+            quiet: true
+
+    - name: Close the session
+      jomrr.bao.token_revoke: {}
+      check_mode: false
+      changed_when: false

@@ -1,0 +1,45 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.approle:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+    name: app
+    token_policies: &id001
+      - app
+    token_ttl: 15m
+  register: bao_test_approle_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.approle:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    name: app
+    token_policies: *id001
+    token_ttl: 15m
+  register: bao_test_approle_offline
+  ignore_errors: true
+
+- name: Fail on an unreachable server in check mode
+  jomrr.bao.approle:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    name: app
+    token_policies: *id001
+    token_ttl: 15m
+  register: bao_test_approle_check
+  check_mode: true
+  ignore_errors: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_approle_url is failed
+      - "'https' in bao_test_approle_url.msg"
+      - bao_test_approle_offline is failed
+      - "'failed' in bao_test_approle_offline.msg"
+      - "'synthetic-test-token' not in bao_test_approle_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_approle_offline.msg"
+      - bao_test_approle_check is failed
+      - bao_test_approle_check is not changed
+    quiet: true

@@ -1,0 +1,61 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.kv2_secret:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+    mount: kv
+    path: app/db
+    data: &id001
+      username: synthetic-test-secret
+  register: bao_test_kv2_secret_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.kv2_secret:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: kv
+    path: app/db
+    data: *id001
+  register: bao_test_kv2_secret_offline
+  ignore_errors: true
+
+- name: Reject an invalid argument combination
+  jomrr.bao.kv2_secret:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: kv
+    path: app/db
+    data:
+      a: x
+    generate:
+      a: {}
+  register: bao_test_kv2_secret_invalid
+  ignore_errors: true
+
+- name: Fail on an unreachable server in check mode
+  jomrr.bao.kv2_secret:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    mount: kv
+    path: app/db
+    data: *id001
+  register: bao_test_kv2_secret_check
+  check_mode: true
+  ignore_errors: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_kv2_secret_url is failed
+      - "'https' in bao_test_kv2_secret_url.msg"
+      - bao_test_kv2_secret_offline is failed
+      - "'failed' in bao_test_kv2_secret_offline.msg"
+      - "'synthetic-test-token' not in bao_test_kv2_secret_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_kv2_secret_offline.msg"
+      - bao_test_kv2_secret_invalid is failed
+      - "'synthetic-test-token' not in bao_test_kv2_secret_invalid.msg"
+      - "'synthetic-test-secret' not in bao_test_kv2_secret_invalid.msg"
+      - bao_test_kv2_secret_check is failed
+      - bao_test_kv2_secret_check is not changed
+    quiet: true

@@ -1,0 +1,34 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.token_revoke:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+  register: bao_test_token_revoke_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.token_revoke:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+  register: bao_test_token_revoke_offline
+  ignore_errors: true
+
+- name: Report the pending action in check mode without connecting
+  jomrr.bao.token_revoke:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+  register: bao_test_token_revoke_check
+  check_mode: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_token_revoke_url is failed
+      - "'https' in bao_test_token_revoke_url.msg"
+      - bao_test_token_revoke_offline is failed
+      - "'failed' in bao_test_token_revoke_offline.msg"
+      - "'synthetic-test-token' not in bao_test_token_revoke_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_token_revoke_offline.msg"
+      - bao_test_token_revoke_check is changed
+      - "'Would' in bao_test_token_revoke_check.msg"
+    quiet: true
