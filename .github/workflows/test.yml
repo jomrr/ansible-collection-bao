@@ -7,9 +7,8 @@ permissions:
 jobs:
   hooks:
     name: Collection and embedded role hooks
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     env:
-      ANSIBLE_TEST_PREFER_PODMAN: '1'
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:
       run:
@@ -43,7 +42,7 @@ jobs:
         run: pre-commit run --all-files
   sanity:
     name: Sanity (Ansible ${{ matrix.ansible }}, Python ${{ matrix.python }})
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +53,6 @@ jobs:
             experimental: false
     continue-on-error: ${{ matrix.experimental }}
     env:
-      ANSIBLE_TEST_PREFER_PODMAN: '1'
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:
       run:
@@ -78,15 +76,11 @@ jobs:
           uv pip install --python .venv/bin/python --group ${{ matrix.group }} --refresh-package ansible-core
       - name: Add collection tools to PATH
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Verify Podman
-        run: |
-          podman version
-          podman info
       - name: Run sanity
         run: ansible-test sanity --docker --python ${{ matrix.python }} -v
   units:
     name: Units (Ansible ${{ matrix.ansible }}, Python ${{ matrix.python }})
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -97,7 +91,6 @@ jobs:
             experimental: false
     continue-on-error: ${{ matrix.experimental }}
     env:
-      ANSIBLE_TEST_PREFER_PODMAN: '1'
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:
       run:
@@ -121,10 +114,6 @@ jobs:
           uv pip install --python .venv/bin/python --group ${{ matrix.group }} --refresh-package ansible-core
       - name: Add collection tools to PATH
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Verify Podman
-        run: |
-          podman version
-          podman info
       - name: Report missing unit suite
         if: hashFiles('ansible_collections/jomrr/bao/tests/unit/**') == ''
         run: echo 'SKIPPED units - no tests/unit suite'

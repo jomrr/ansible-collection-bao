@@ -33,7 +33,7 @@ jobs:
   changes:
     name: Classify the complete push
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     outputs:
       integration: ${{ steps.diff.outputs.integration }}
     steps:
@@ -63,9 +63,8 @@ jobs:
     name: Module and plugin integration
     needs: [test, changes]
     if: needs.changes.outputs.integration == 'true'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     env:
-      ANSIBLE_TEST_PREFER_PODMAN: '1'
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:
       run:
@@ -89,10 +88,6 @@ jobs:
           uv pip install --python .venv/bin/python --group dev --group ansible-2-20 --refresh-package ansible-core
       - name: Add collection tools to PATH
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Verify Podman
-        run: |
-          podman version
-          podman info
       - name: Run authored integration targets
         if: hashFiles('ansible_collections/jomrr/bao/tests/integration/targets/**') != ''
         run: ansible-test integration --docker --python 3.12 -v
@@ -100,14 +95,13 @@ jobs:
     name: Molecule (${{ matrix.scenario }})
     needs: [test, changes]
     if: needs.changes.outputs.integration == 'true'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         scenario:
           - "default"
     env:
-      ANSIBLE_TEST_PREFER_PODMAN: '1'
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:
       run:
@@ -131,10 +125,9 @@ jobs:
           uv pip install --python .venv/bin/python --group dev --group ansible-2-20 --refresh-package ansible-core
       - name: Add collection tools to PATH
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Verify Podman
-        run: |
-          podman version
-          podman info
+      - name: Show the container engine
+        run: podman version
+
       - name: Install test dependencies
         run: |
           ansible-galaxy collection install -r tests/integration/requirements.yml -p "$ANSIBLE_COLLECTIONS_PATH"
