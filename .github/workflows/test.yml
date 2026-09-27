@@ -30,7 +30,7 @@ jobs:
       - name: Install tools from pyproject.toml
         run: |
           uv venv --python 3.12 .venv
-          uv pip install --python .venv/bin/python --group dev --group ansible-2-20 --refresh-package ansible-core
+          uv pip install --python .venv/bin/python --group dev --group ansible-stable-2-20 --refresh-package ansible-core
       - name: Add collection tools to PATH
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Install test dependencies
@@ -48,10 +48,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - ansible: "2.20.*"
+          - ansible: "stable-2.20"
             python: "3.12"
-            group: "ansible-2-20"
+            group: "ansible-stable-2-20"
             experimental: false
+          - ansible: "stable-2.21"
+            python: "3.12"
+            group: "ansible-stable-2-21"
+            experimental: false
+          - ansible: "devel"
+            python: "3.13"
+            group: "ansible-devel"
+            experimental: true
     continue-on-error: ${{ matrix.experimental }}
     env:
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
@@ -87,10 +95,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - ansible: "2.20.*"
+          - ansible: "stable-2.20"
             python: "3.12"
-            group: "ansible-2-20"
+            group: "ansible-stable-2-20"
             experimental: false
+          - ansible: "stable-2.21"
+            python: "3.12"
+            group: "ansible-stable-2-21"
+            experimental: false
+          - ansible: "devel"
+            python: "3.13"
+            group: "ansible-devel"
+            experimental: true
     continue-on-error: ${{ matrix.experimental }}
     env:
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}

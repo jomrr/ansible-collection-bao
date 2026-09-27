@@ -18,7 +18,7 @@ with an existing session token.
 
 ## Requirements
 
-- ansible-core >=2.20.0,<2.21.0
+- ansible-core >=2.20.0
 - Modules run where the task runs, typically delegated to localhost; they use
   Python 3.12 and Ansible's HTTP helpers and need no additional Python packages
   or system programs.

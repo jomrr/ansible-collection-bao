@@ -86,7 +86,7 @@ jobs:
       - name: Install tools from pyproject.toml
         run: |
           uv venv --python 3.12 .venv
-          uv pip install --python .venv/bin/python --group dev --group ansible-2-20 --refresh-package ansible-core
+          uv pip install --python .venv/bin/python --group dev --group ansible-stable-2-20 --refresh-package ansible-core
       - name: Add collection tools to PATH
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Run authored integration targets
@@ -124,7 +124,7 @@ jobs:
       - name: Install tools from pyproject.toml
         run: |
           uv venv --python 3.12 .venv
-          uv pip install --python .venv/bin/python --group dev --group ansible-2-20 --refresh-package ansible-core
+          uv pip install --python .venv/bin/python --group dev --group ansible-stable-2-20 --refresh-package ansible-core
       - name: Add collection tools to PATH
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Show the container engine
