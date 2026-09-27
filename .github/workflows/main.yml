@@ -81,6 +81,7 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: true
+          cache-suffix: ${{ github.job }}-${{ matrix.group || matrix.scenario || 'default' }}
           cache-dependency-glob: ansible_collections/jomrr/bao/pyproject.toml
       - name: Install tools from pyproject.toml
         run: |
@@ -118,6 +119,7 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: true
+          cache-suffix: ${{ github.job }}-${{ matrix.group || matrix.scenario || 'default' }}
           cache-dependency-glob: ansible_collections/jomrr/bao/pyproject.toml
       - name: Install tools from pyproject.toml
         run: |
