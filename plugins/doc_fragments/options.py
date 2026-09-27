@@ -30,7 +30,7 @@ options:
     elements: str
     version_added: 0.1.0
   token_bound_cidrs:
-    description: Networks allowed to use issued tokens.
+    description: Networks allowed to use issued tokens; a host address equals its C(/32) or C(/128) network.
     type: list
     elements: str
     version_added: 0.1.0

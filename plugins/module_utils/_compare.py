@@ -6,12 +6,13 @@
 
 from __future__ import annotations
 
+import ipaddress
 from collections.abc import Callable
 from typing import Any, Literal
 
 from ansible_collections.jomrr.bao.plugins.module_utils._duration import to_seconds
 
-Kind = Literal["str", "int", "bool", "list", "csv", "duration", "map"]
+Kind = Literal["str", "int", "bool", "list", "csv", "cidrs", "duration", "map"]
 Fields = dict[str, Kind]
 Mapping = dict[str, Any]
 
@@ -34,6 +35,19 @@ def _mapping(value: object) -> dict[str, Any]:
     return {str(key): item for key, item in value.items()}
 
 
+def _cidr(value: str) -> str:
+    """Return a network as OpenBao reports it: host networks without a suffix."""
+    text = value.strip()
+    address, _separator, prefix = text.partition("/")
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return text
+    if prefix in ("", str(parsed.max_prefixlen)):
+        return str(parsed)
+    return f"{parsed}/{prefix}"
+
+
 _NORMALIZERS: dict[str, Callable[[object], object]] = {
     "str": str,
     "int": lambda value: int(str(value)),
@@ -41,14 +55,23 @@ _NORMALIZERS: dict[str, Callable[[object], object]] = {
     "duration": to_seconds,
     "list": lambda value: sorted(as_list(value)),
     "csv": lambda value: sorted(as_list(value)),
+    "cidrs": lambda value: sorted(_cidr(item) for item in as_list(value)),
     "map": _mapping,
+}
+# OpenBao reports unset collections as null or as an empty collection.
+_EMPTY: dict[str, Callable[[], object]] = {
+    "list": list,
+    "csv": list,
+    "cidrs": list,
+    "map": dict,
 }
 
 
 def normalize(kind: Kind, value: object) -> object:
     """Return a comparable representation of a field value."""
     if value is None:
-        return None
+        empty = _EMPTY.get(kind)
+        return None if empty is None else empty()
     return _NORMALIZERS[kind](value)
 
 
@@ -74,11 +97,12 @@ def view(fields: Fields, mapping: Mapping | None) -> Mapping:
     """Return the normalized view of the known fields for diff output."""
     if not mapping:
         return {}
-    return {
+    known = {
         name: normalize(kind, mapping[name])
         for name, kind in fields.items()
-        if name in mapping and mapping[name] is not None
+        if name in mapping
     }
+    return {name: value for name, value in known.items() if value is not None}
 
 
 def merge(current: Mapping | None, desired: Mapping) -> Mapping:

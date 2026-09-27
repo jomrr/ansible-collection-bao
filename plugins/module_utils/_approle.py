@@ -20,14 +20,14 @@ from ansible_collections.jomrr.bao.plugins.module_utils.client import Api
 
 ROLE_FIELDS: Fields = {
     "bind_secret_id": "bool",
-    "secret_id_bound_cidrs": "list",
+    "secret_id_bound_cidrs": "cidrs",
     "secret_id_num_uses": "int",
     "secret_id_ttl": "duration",
     **TOKEN_FIELDS,
 }
 SECRET_ID_FIELDS: Fields = {
-    "cidr_list": "list",
-    "token_bound_cidrs": "list",
+    "cidr_list": "cidrs",
+    "token_bound_cidrs": "cidrs",
     "secret_id_ttl": "duration",
     "secret_id_num_uses": "int",
     "metadata": "map",

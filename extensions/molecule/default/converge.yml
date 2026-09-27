@@ -64,7 +64,7 @@
       loop:
         - {name: molecule-admin, policies: [admin], ttl: 1h}
         - {name: application, policies: [application], ttl: 15m}
-        - {name: restricted, policies: [reader], ttl: 15m, cidrs: [192.0.2.0/24, 198.51.100.0/24]}
+        - {name: restricted, policies: [reader], ttl: 15m, cidrs: [192.0.2.0/24, 198.51.100.0/24, 203.0.113.7/32]}
 
     - name: Register and verify the administration Secret ID
       jomrr.bao.approle_secret_id:

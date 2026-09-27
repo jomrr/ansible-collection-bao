@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 TOKEN_FIELDS: Fields = {
     "token_policies": "list",
-    "token_bound_cidrs": "list",
+    "token_bound_cidrs": "cidrs",
     "token_ttl": "duration",
     "token_max_ttl": "duration",
     "token_explicit_max_ttl": "duration",

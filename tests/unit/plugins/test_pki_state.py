@@ -32,12 +32,13 @@ ISSUERS = {
     "keys": ["id-1"],
     "key_info": {"id-1": {"issuer_name": "root", "is_default": True}},
 }
-ISSUER = {
+ISSUER: dict[str, Any] = {
     "issuer_id": "id-1",
     "issuer_name": "root",
     "usage": "crl-signing,issuing-certificates,ocsp-signing,read-only",
     "issuing_certificates": [],
     "crl_distribution_points": [],
+    "manual_chain": None,
     "leaf_not_after_behavior": "err",
 }
 
@@ -168,6 +169,7 @@ class PkiIssuerTests(unittest.TestCase):
             "mount": "pki",
             "name": "root",
             "default": True,
+            "manual_chain": [],
             "usage": [
                 "read-only",
                 "issuing-certificates",

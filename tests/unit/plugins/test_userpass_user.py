@@ -71,6 +71,7 @@ class UserpassTests(unittest.TestCase):
             "name": "operator",
             "mount": "users",
             "token_policies": ["operator"],
+            "token_bound_cidrs": ["192.0.2.10/32"],
             "token_ttl": "30m",
         }
         client = FakeClient({("GET", PATH): CURRENT})

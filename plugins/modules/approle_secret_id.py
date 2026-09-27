@@ -28,12 +28,12 @@ options:
     required: true
     version_added: 0.1.0
   cidr_list:
-    description: Networks allowed to log in with this Secret ID.
+    description: Networks in CIDR notation allowed to log in with this Secret ID; host addresses need C(/32) or C(/128).
     type: list
     elements: str
     version_added: 0.1.0
   token_bound_cidrs:
-    description: Networks allowed to use tokens issued for this Secret ID.
+    description: Networks allowed to use tokens of this Secret ID; a host address equals its C(/32) or C(/128) network.
     type: list
     elements: str
     version_added: 0.1.0

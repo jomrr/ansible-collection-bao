@@ -82,6 +82,28 @@ class AppRoleTests(unittest.TestCase):
         self.assertEqual(client.writes(), [])
         self.assertEqual(result["role_id"], "app")
 
+    def test_unchanged_in_server_representation(self) -> None:
+        """Null lists and host networks without suffix equal the requested values."""
+        current = {
+            **CURRENT,
+            "secret_id_bound_cidrs": None,
+            "token_bound_cidrs": ["10.0.0.1", "2001:db8::1"],
+        }
+        responses = {
+            ("GET", ROLE): current,
+            ("GET", f"{ROLE}/role-id"): {"role_id": "app"},
+        }
+        client = FakeClient(responses)
+        inputs = {
+            "name": "app",
+            "secret_id_bound_cidrs": [],
+            "token_bound_cidrs": ["2001:db8::1/128", "10.0.0.1/32"],
+        }
+        result = run_module_under_test(approle, inputs, client)
+        self.assertFalse(result["changed"])
+        self.assertEqual(client.writes(), [])
+        self.assertEqual(result["diff"]["before"], result["diff"]["after"])
+
     def test_update_and_check_mode(self) -> None:
         """Changed settings are written with the full desired set, not in check mode."""
         responses = {

@@ -82,8 +82,22 @@
           - "'application' not in bao_test_lookup_missing.msg"
         quiet: true
 
-    - name: Repeat the authority and signing key actions
+    - name: Repeat converged resources and actions
       block:
+        - name: Repeat the administration AppRole with empty network lists
+          jomrr.bao.approle:
+            name: molecule-admin
+            secret_id_bound_cidrs: []
+            token_bound_cidrs: []
+          register: bao_test_empty_networks
+
+        - name: Repeat the intermediate issuer with an empty manual chain
+          jomrr.bao.pki_issuer:
+            mount: pki-int
+            name: intermediate
+            manual_chain: []
+          register: bao_test_empty_chain
+
         - name: Repeat the root authority
           jomrr.bao.pki_ca:
             mount: pki-root
@@ -97,9 +111,11 @@
             mount: ssh
           register: bao_test_ssh_again
 
-        - name: Verify the idempotent actions
+        - name: Verify the idempotent resources and actions
           ansible.builtin.assert:
             that:
+              - bao_test_empty_networks is not changed
+              - bao_test_empty_chain is not changed
               - bao_test_root_again is not changed
               - bao_test_root_again.certificate is search('BEGIN CERTIFICATE')
               - bao_test_ssh_again is not changed

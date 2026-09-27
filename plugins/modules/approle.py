@@ -31,7 +31,7 @@ options:
     type: bool
     version_added: 0.1.0
   secret_id_bound_cidrs:
-    description: Networks allowed to use Secret IDs of this role.
+    description: Networks in CIDR notation allowed to use Secret IDs of this role; host addresses need C(/32) or C(/128).
     type: list
     elements: str
     version_added: 0.1.0
