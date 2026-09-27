@@ -126,7 +126,7 @@ class ClientTests(unittest.TestCase):
         ]
         for failure in failures:
             with (
-                self.subTest(failure=failure),
+                self.subTest(failure=repr(failure)),
                 patch.object(client_module, "open_url", side_effect=failure),
                 self.assertRaises(BaoError) as raised,
             ):
