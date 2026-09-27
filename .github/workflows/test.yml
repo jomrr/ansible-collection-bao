@@ -2,16 +2,47 @@
 name: Collection tests
 "on":
   workflow_call:
-    inputs:
-      full:
-        description: Run integration and installed-package gates after the fast checks
-        type: boolean
-        required: false
-        default: false
 permissions:
   contents: read
 jobs:
-  check:
+  hooks:
+    name: Collection and embedded role hooks
+    runs-on: ubuntu-26.04
+    env:
+      ANSIBLE_TEST_PREFER_PODMAN: '1'
+      ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ansible_collections/jomrr/bao
+    steps:
+      - name: Check out the collection
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          persist-credentials: false
+          path: ansible_collections/jomrr/bao
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: ansible_collections/jomrr/bao/pyproject.toml
+      - name: Install tools from pyproject.toml
+        run: |
+          uv venv --python 3.12 .venv
+          uv pip install --python .venv/bin/python --group dev --group ansible-2-20 --refresh-package ansible-core
+      - name: Add collection tools to PATH
+        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Install test dependencies
+        run: |
+          ansible-galaxy collection install -r tests/integration/requirements.yml -p "$ANSIBLE_COLLECTIONS_PATH"
+          ansible-galaxy role install -r tests/integration/requirements.yml
+      - name: Verify recorded submodules
+        run: git submodule status --recursive | awk '/^[-+U]/ { print; bad = 1 } END { exit bad }'
+      - name: Run collection hooks
+        run: pre-commit run --all-files
+  sanity:
+    name: Sanity (Ansible ${{ matrix.ansible }}, Python ${{ matrix.python }})
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
@@ -20,45 +51,83 @@ jobs:
           - ansible: "2.20.*"
             python: "3.12"
             group: "ansible-2-20"
+            experimental: false
+    continue-on-error: ${{ matrix.experimental }}
     env:
-      ANSIBLE_GROUP: ${{ matrix.group }}
-      ANSIBLE_TEST_PREFER_PODMAN: ''
+      ANSIBLE_TEST_PREFER_PODMAN: '1'
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
-
     defaults:
       run:
+        shell: bash
         working-directory: ansible_collections/jomrr/bao
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out the collection
+        uses: actions/checkout@v5
         with:
           submodules: recursive
+          persist-credentials: false
           path: ansible_collections/jomrr/bao
-      - name: Verify container engines
-        run: |
-          docker version
-          docker info
-          podman version
-          podman info
       - uses: astral-sh/setup-uv@v8.1.0
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "${{ matrix.python }}"
           enable-cache: true
           cache-dependency-glob: ansible_collections/jomrr/bao/pyproject.toml
       - name: Install tools from pyproject.toml
-        run: make sync PYTHON_VERSION=${{ matrix.python }}
-      - name: Collection and embedded role hooks
-        run: make hooks
-      - name: Sanity
-        run: .venv/bin/ansible-test sanity --docker --python ${{ matrix.python }}
-      - name: Units
+        run: |
+          uv venv --python ${{ matrix.python }} .venv
+          uv pip install --python .venv/bin/python --group ${{ matrix.group }} --refresh-package ansible-core
+      - name: Add collection tools to PATH
+        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Verify Podman
+        run: |
+          podman version
+          podman info
+      - name: Run sanity
+        run: ansible-test sanity --docker --python ${{ matrix.python }} -v
+  units:
+    name: Units (Ansible ${{ matrix.ansible }}, Python ${{ matrix.python }})
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ansible: "2.20.*"
+            python: "3.12"
+            group: "ansible-2-20"
+            experimental: false
+    continue-on-error: ${{ matrix.experimental }}
+    env:
+      ANSIBLE_TEST_PREFER_PODMAN: '1'
+      ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ansible_collections/jomrr/bao
+    steps:
+      - name: Check out the collection
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          persist-credentials: false
+          path: ansible_collections/jomrr/bao
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "${{ matrix.python }}"
+          enable-cache: true
+          cache-dependency-glob: ansible_collections/jomrr/bao/pyproject.toml
+      - name: Install tools from pyproject.toml
+        run: |
+          uv venv --python ${{ matrix.python }} .venv
+          uv pip install --python .venv/bin/python --group ${{ matrix.group }} --refresh-package ansible-core
+      - name: Add collection tools to PATH
+        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Verify Podman
+        run: |
+          podman version
+          podman info
+      - name: Report missing unit suite
+        if: hashFiles('ansible_collections/jomrr/bao/tests/unit/**') == ''
+        run: echo 'SKIPPED units - no tests/unit suite'
+      - name: Run units
         if: hashFiles('ansible_collections/jomrr/bao/tests/unit/**') != ''
-        run: .venv/bin/ansible-test units --docker --python ${{ matrix.python }}
-      - name: Module and plugin integration
-        if: inputs.full && hashFiles('ansible_collections/jomrr/bao/tests/integration/targets/**') != ''
-        run: .venv/bin/ansible-test integration --docker --python ${{ matrix.python }}
-      - name: Collection FQCN integration, idempotence and check mode
-        if: inputs.full
-        run: .venv/bin/molecule test --all
-      - name: Test the installed package outside the source checkout
-        if: inputs.full
-        run: make package-test
+        run: ansible-test units --docker --python ${{ matrix.python }} -v

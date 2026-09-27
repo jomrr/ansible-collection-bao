@@ -45,3 +45,10 @@ build_command = "antsibull-changelog release && git add -- CHANGELOG.rst changel
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
+
+[tool.semantic_release.remote]
+name = "origin"
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/jomrr-bao-*.tar.gz"]
+upload_to_vcs_release = true
