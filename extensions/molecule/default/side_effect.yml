@@ -15,7 +15,7 @@
     - name: Preserve the generated password for verification
       ansible.builtin.copy:
         content: "{{ lookup('jomrr.bao.kv2', 'app/managed', mount='kv', key='password') }}"
-        dest: "{{ bao_test_ca_file | dirname }}/generated-password"
+        dest: "{{ bao_test_files }}-generated-password"
         mode: "0600"
       no_log: true
 

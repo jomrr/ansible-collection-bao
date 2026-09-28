@@ -22,21 +22,36 @@ scenario:
 provisioner:
   inventory:
     host_vars:
-      openbao:
+      openbao-2-6:
         ansible_connection: local
         ansible_python_interpreter: '{{ ansible_playbook_python }}'
+        bao_test_version: '2.6'
+        bao_test_port: 18206
+      openbao-2-7:
+        ansible_connection: local
+        ansible_python_interpreter: '{{ ansible_playbook_python }}'
+        bao_test_version: '2.7'
+        bao_test_port: 18207
     group_vars:
       all:
-        bao_test_container: openbao
-        bao_test_url: https://127.0.0.1:18200
-        bao_test_ca_file: '{{ lookup(''ansible.builtin.env'', ''MOLECULE_EPHEMERAL_DIRECTORY'')
-          }}/openbao-ca.pem'
+        bao_test_container: '{{ inventory_hostname }}'
+        bao_test_url: https://127.0.0.1:{{ bao_test_port }}
+        bao_test_files: '{{ lookup(''ansible.builtin.env'', ''MOLECULE_EPHEMERAL_DIRECTORY'')
+          }}/{{ inventory_hostname }}'
+        bao_test_ca_file: '{{ bao_test_files }}-ca.pem'
         bao_test_root_token: molecule-root-token-not-for-production
 platforms:
-  - name: openbao
-    image: quay.io/openbao/openbao:latest
+  - name: openbao-2-6
+    image: quay.io/openbao/openbao:2.6
     pre_build_image: true
     command: server -dev -dev-tls -dev-tls-cert-dir=/tmp -dev-listen-address=0.0.0.0:8200
       -dev-root-token-id=molecule-root-token-not-for-production
     published_ports:
-      - 127.0.0.1:18200:8200
+      - 127.0.0.1:18206:8200
+  - name: openbao-2-7
+    image: quay.io/openbao/openbao:2.7
+    pre_build_image: true
+    command: server -dev -dev-tls -dev-tls-cert-dir=/tmp -dev-listen-address=0.0.0.0:8200
+      -dev-root-token-id=molecule-root-token-not-for-production
+    published_ports:
+      - 127.0.0.1:18207:8200

@@ -32,7 +32,7 @@
           - bao_test_running.initialized
           - not bao_test_running.sealed
           - bao_test_running.ready
-          - bao_test_running.version is version('2.0.0', '>=')
+          - bao_test_running.version.split('.')[:2] | join('.') == bao_test_version
         quiet: true
 
     - name: Read the repaired resources
@@ -63,7 +63,7 @@
           - "bao_test_read.results[3].json.data.data.nested == {'desired': true}"
           - bao_test_read.results[3].json.data.data.additional == 'preserved'
           - bao_test_read.results[3].json.data.data.password | length == 40
-          - bao_test_read.results[3].json.data.data.password == lookup('ansible.builtin.file', bao_test_ca_file | dirname ~ '/generated-password')
+          - bao_test_read.results[3].json.data.data.password == lookup('ansible.builtin.file', bao_test_files ~ '-generated-password')
           - bao_test_read.results[4].json.data.ttl == 2592000
           - bao_test_read.results[4].json.data.allow_subdomains
           - bao_test_read.results[4].json.data.ext_key_usage_oids == []

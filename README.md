@@ -23,6 +23,7 @@ with an existing session token.
   Python 3.12 and Ansible's HTTP helpers and need no additional Python packages
   or system programs.
 - The kv2 lookup runs on the controller and needs no additional Python packages.
+- The modules and the lookup are tested against OpenBao 2.6 and 2.7.
 
 ## Installation
 
