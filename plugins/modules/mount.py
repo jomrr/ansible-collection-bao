@@ -86,7 +86,7 @@ RETURN = r"""
 from ansible_collections.jomrr.bao.plugins.module_utils import _mount
 from ansible_collections.jomrr.bao.plugins.module_utils._module import (
     run_module,
-    state_spec,
+    typed_spec,
 )
 
 # pylint: enable=wrong-import-position
@@ -95,16 +95,17 @@ from ansible_collections.jomrr.bao.plugins.module_utils._module import (
 def main() -> None:
     """Run the module."""
     run_module(
-        {
-            "path": {"type": "str", "required": True},
-            "kind": {"type": "str", "choices": ["secret", "auth"], "default": "secret"},
-            "type": {"type": "str"},
-            "description": {"type": "str"},
-            "default_lease_ttl": {"type": "str"},
-            "max_lease_ttl": {"type": "str"},
-            "options": {"type": "dict"},
-            **state_spec(),
-        },
+        typed_spec(
+            {
+                "kind": {
+                    "type": "str",
+                    "choices": ["secret", "auth"],
+                    "default": "secret",
+                },
+                "default_lease_ttl": {"type": "str"},
+                "max_lease_ttl": {"type": "str"},
+            }
+        ),
         _mount.run,
         required_if=[("state", "present", ("type",))],
     )

@@ -1,0 +1,44 @@
+---
+- name: Converge audit devices
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+  tasks:
+    - name: Predict the file audit device
+      jomrr.bao.audit_device: &bao_test_file_device
+        path: file
+        type: file
+        description: Audit log in the container
+        options:
+          file_path: /openbao/logs/audit.json
+          mode: "0600"
+          elide_list_responses: true
+        replace: true
+      register: bao_test_predicted
+      check_mode: true
+
+    - name: Enable the file audit device and replace a drifted one
+      jomrr.bao.audit_device: *bao_test_file_device
+      register: bao_test_enabled
+
+    - name: Keep the audit device declared in the configuration
+      jomrr.bao.audit_device:
+        path: declared
+        type: file
+        description: Declared in the configuration
+        options:
+          file_path: discard
+      register: bao_test_declared
+
+    - name: Verify the prediction and the declared device
+      ansible.builtin.assert:
+        that:
+          - bao_test_predicted.changed == bao_test_enabled.changed
+          - bao_test_predicted.diff == bao_test_enabled.diff
+          - bao_test_enabled.diff.after.options.elide_list_responses == 'true'
+          - bao_test_declared is not changed
+        quiet: true

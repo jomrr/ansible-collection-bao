@@ -333,6 +333,24 @@
         - kv/metadata/app/check-only
         - auth/users/users/check-only
 
+    - name: Reject an audit device on a server without API audit creation
+      block:
+        - name: Enable an audit device
+          jomrr.bao.audit_device:
+            path: file
+            type: file
+            options:
+              file_path: discard
+          register: bao_test_audit
+          ignore_errors: true
+
+        - name: Verify the rejected audit device
+          ansible.builtin.assert:
+            that:
+              - bao_test_audit is failed
+              - "'cannot enable audit device via API' in bao_test_audit.msg"
+            quiet: true
+
     - name: Reject a snapshot of a server without raft storage
       block:
         - name: Save a snapshot without raft storage

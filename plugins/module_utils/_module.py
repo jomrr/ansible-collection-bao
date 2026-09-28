@@ -75,6 +75,18 @@ def state_spec() -> Spec:
     }
 
 
+def typed_spec(fields: Spec) -> Spec:
+    """Return the spec of a typed backend at a path with a state option."""
+    return {
+        "path": {"type": "str", "required": True},
+        "type": {"type": "str"},
+        "description": {"type": "str"},
+        "options": {"type": "dict"},
+        **fields,
+        **state_spec(),
+    }
+
+
 def named_spec(fields: Spec) -> Spec:
     """Return the spec of a named resource below a mount with a state option."""
     return {

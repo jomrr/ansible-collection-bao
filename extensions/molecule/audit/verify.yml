@@ -1,0 +1,130 @@
+---
+- name: Verify audit devices
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+    ansible.builtin.uri:
+      ca_path: "{{ bao_test_ca_file }}"
+      headers:
+        X-Vault-Token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+  tasks:
+    - name: Refuse to modify an existing device
+      block:
+        - name: Request another description
+          jomrr.bao.audit_device:
+            path: file
+            type: file
+            description: Changed
+          register: bao_test_description
+          ignore_errors: true
+
+        - name: Request other options
+          jomrr.bao.audit_device:
+            path: file
+            type: file
+            options:
+              file_path: /openbao/logs/audit.json
+          register: bao_test_options
+          ignore_errors: true
+
+        - name: Replace the device with settings the server rejects
+          jomrr.bao.audit_device:
+            path: file
+            type: file
+            options: {}
+            replace: true
+          register: bao_test_rejected
+          ignore_errors: true
+
+    - name: Handle the device declared in the configuration
+      block:
+        - name: Disable the declared device
+          jomrr.bao.audit_device:
+            path: declared
+            state: absent
+          register: bao_test_declared
+          ignore_errors: true
+
+        - name: Replace the declared device
+          jomrr.bao.audit_device:
+            path: declared
+            type: file
+            options:
+              file_path: stdout
+            replace: true
+          register: bao_test_declared_replace
+          ignore_errors: true
+
+    - name: Manage a device with credentials
+      block:
+        - name: Enable an http device with credentials
+          jomrr.bao.audit_device: &bao_test_collector
+            path: nested/collector
+            type: http
+            options:
+              uri: http://127.0.0.1:9/audit
+              skip_test: true
+            secret_options:
+              headers: '{"Authorization": ["Bearer molecule-collector-credential"]}'
+          register: bao_test_collector
+          loop: [first, repeated]
+
+        - name: Predict a device in check mode
+          jomrr.bao.audit_device:
+            path: check-only
+            type: file
+            options:
+              file_path: discard
+          register: bao_test_check
+          check_mode: true
+
+        - name: Read the enabled audit devices
+          ansible.builtin.uri:
+            url: "{{ bao_test_url }}/v1/sys/audit"
+          register: bao_test_devices
+          no_log: true
+
+        - name: Disable the http device
+          jomrr.bao.audit_device:
+            path: nested/collector
+            state: absent
+          register: bao_test_disabled
+          loop: [first, repeated]
+
+    - name: Read the audit log written by the file device
+      containers.podman.podman_container_exec:
+        name: "{{ bao_test_container }}"
+        argv: [grep, -c, '"type":"response"', /openbao/logs/audit.json]
+      register: bao_test_log
+      changed_when: false
+
+    - name: Verify audit device handling
+      ansible.builtin.assert:
+        that:
+          - bao_test_description is failed
+          - "'differs in description;' in bao_test_description.msg"
+          - bao_test_options is failed
+          - "'differs in options;' in bao_test_options.msg"
+          - bao_test_rejected is failed
+          - "'file_path is required' in bao_test_rejected.msg"
+          - bao_test_declared is failed
+          - "'configuration-managed' in bao_test_declared.msg"
+          - bao_test_declared_replace is failed
+          - "'configuration-managed' in bao_test_declared_replace.msg"
+          - bao_test_collector.results[0] is changed
+          - bao_test_collector.results[1] is not changed
+          - "'molecule-collector-credential' not in bao_test_collector | string"
+          - bao_test_check is changed
+          - bao_test_devices.json.data.keys() | sort == ['declared/', 'file/', 'nested/collector/']
+          - bao_test_devices.json.data['file/'].options.file_path == '/openbao/logs/audit.json'
+          - bao_test_devices.json.data['file/'].options.elide_list_responses == 'true'
+          - bao_test_devices.json.data['file/'].description == 'Audit log in the container'
+          - "'molecule-collector-credential' in bao_test_devices.json.data['nested/collector/'].options.headers"
+          - bao_test_disabled.results[0] is changed
+          - bao_test_disabled.results[1] is not changed
+          - bao_test_log.stdout | int > 0
+        quiet: true

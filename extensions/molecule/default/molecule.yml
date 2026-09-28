@@ -52,6 +52,16 @@ provisioner:
         ansible_python_interpreter: '{{ ansible_playbook_python }}'
         bao_test_version: '2.7'
         bao_test_port: 18227
+      openbao-audit-2-6:
+        ansible_connection: local
+        ansible_python_interpreter: '{{ ansible_playbook_python }}'
+        bao_test_version: '2.6'
+        bao_test_port: 18236
+      openbao-audit-2-7:
+        ansible_connection: local
+        ansible_python_interpreter: '{{ ansible_playbook_python }}'
+        bao_test_version: '2.7'
+        bao_test_port: 18237
     group_vars:
       all:
         bao_test_container: '{{ inventory_hostname }}'

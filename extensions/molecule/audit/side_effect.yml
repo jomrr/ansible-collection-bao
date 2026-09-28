@@ -1,0 +1,15 @@
+---
+- name: Let the file audit device drift
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Replace the file audit device with other options
+      jomrr.bao.audit_device:
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
+        token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+        path: file
+        type: file
+        options:
+          file_path: /openbao/logs/drifted.json
+        replace: true

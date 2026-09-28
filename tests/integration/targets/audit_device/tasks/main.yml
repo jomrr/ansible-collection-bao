@@ -1,0 +1,57 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.audit_device:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+    path: file
+    type: file
+    options:
+      file_path: discard
+  register: bao_test_audit_device_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.audit_device:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    path: collector
+    type: http
+    options:
+      uri: https://logs.example.test
+    secret_options:
+      headers: '{"Authorization": ["Bearer synthetic-test-secret"]}'
+  register: bao_test_audit_device_offline
+  ignore_errors: true
+
+- name: Reject an invalid argument combination
+  jomrr.bao.audit_device:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    path: file
+  register: bao_test_audit_device_invalid
+  ignore_errors: true
+
+- name: Fail on an unreachable server in check mode
+  jomrr.bao.audit_device:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    path: file
+    state: absent
+  register: bao_test_audit_device_check
+  check_mode: true
+  ignore_errors: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_audit_device_url is failed
+      - "'https' in bao_test_audit_device_url.msg"
+      - bao_test_audit_device_offline is failed
+      - "'failed' in bao_test_audit_device_offline.msg"
+      - "'synthetic-test-token' not in bao_test_audit_device_offline | string"
+      - "'synthetic-test-secret' not in bao_test_audit_device_offline | string"
+      - bao_test_audit_device_invalid is failed
+      - "'synthetic-test-token' not in bao_test_audit_device_invalid.msg"
+      - bao_test_audit_device_check is failed
+      - bao_test_audit_device_check is not changed
+    quiet: true

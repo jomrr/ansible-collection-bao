@@ -12,9 +12,9 @@ PKI and SSH.
 ## Purpose
 
 Manage an OpenBao server through its HTTP API with independent modules for ACL
-policies, auth and secrets mounts, AppRole and userpass identities, KV version 2
-secrets, PKI and SSH certificate authorities, plus a KV v2 lookup that reads
-with an existing session token.
+policies, auth and secrets mounts, audit devices, AppRole and userpass
+identities, KV version 2 secrets, PKI and SSH certificate authorities, plus a KV
+v2 lookup that reads with an existing session token.
 
 ## Requirements
 
@@ -40,6 +40,7 @@ ansible-galaxy collection install jomrr.bao
 | [`jomrr.bao.approle`](plugins/modules/approle.py) | yes | yes | Manage AppRoles |
 | [`jomrr.bao.approle_info`](plugins/modules/approle_info.py) | n/a (read) | yes | Read an AppRole and its network bindings |
 | [`jomrr.bao.approle_secret_id`](plugins/modules/approle_secret_id.py) | yes | yes | Register or revoke a custom Secret ID |
+| [`jomrr.bao.audit_device`](plugins/modules/audit_device.py) | yes (replacement on request) | yes | Manage audit devices |
 | [`jomrr.bao.health_info`](plugins/modules/health_info.py) | n/a (read) | yes | Read the initialization, seal and readiness state |
 | [`jomrr.bao.kv2_secret`](plugins/modules/kv2_secret.py) | yes | yes | Manage KV version 2 secret data |
 | [`jomrr.bao.login`](plugins/modules/login.py) | no (action) | yes | Log in with an AppRole and return a session token |
@@ -138,6 +139,21 @@ server state, including everything written after the snapshot. `force: true` ski
 check that the seal keys match the snapshot. Raise `timeout` for large snapshots. A
 snapshot holds the complete storage of the server; protect the file like a secret.
 
+## Audit Devices
+
+`jomrr.bao.audit_device` enables and disables audit devices through the API. This suits
+servers whose configuration file is provisioned elsewhere; where the configuration is
+under your control, declare the devices there. The server accepts new devices through
+the API only while its configuration sets `unsafe_allow_api_audit_creation`, and it
+refuses to disable devices declared in its configuration.
+
+Audit devices cannot be modified. A device that differs from the requested settings
+fails the task; `replace: true` disables it and enables it with the requested settings.
+The new device creates a new salt, so values can no longer be compared with the hashes
+in earlier audit logs. When the server rejects the new device, the previous one is
+enabled again. Options that hold credentials, such as the `headers` of an `http` device,
+belong in `secret_options`.
+
 ## Ordering
 
 Enable mounts with `jomrr.bao.mount` before configuring their contents. Write ACL policies
@@ -183,8 +199,8 @@ allowed extensions, TTLs and `algorithm_signer`.
 
 ## Security
 
-Tokens, Secret IDs, passwords, private keys and KV data are `no_log`
-options and never appear in messages, diffs or return values. The KV diff lists keys and
+Tokens, Secret IDs, passwords, private keys, KV data and secret audit device options are
+`no_log` options and never appear in messages, diffs or return values. The KV diff lists keys and
 the version only. Returned credentials from `login`, `approle_secret_id`, `pki_acme_eab`
 and `pki_ca` with `type: exported` require `no_log: true` on the calling task.
 

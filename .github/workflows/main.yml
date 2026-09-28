@@ -104,6 +104,7 @@ jobs:
           - "default"
           - "recovery"
           - "raft"
+          - "audit"
     env:
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:

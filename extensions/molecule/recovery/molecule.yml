@@ -52,6 +52,16 @@ provisioner:
         ansible_python_interpreter: '{{ ansible_playbook_python }}'
         bao_test_version: '2.7'
         bao_test_port: 18227
+      openbao-audit-2-6:
+        ansible_connection: local
+        ansible_python_interpreter: '{{ ansible_playbook_python }}'
+        bao_test_version: '2.6'
+        bao_test_port: 18236
+      openbao-audit-2-7:
+        ansible_connection: local
+        ansible_python_interpreter: '{{ ansible_playbook_python }}'
+        bao_test_version: '2.7'
+        bao_test_port: 18237
     group_vars:
       all:
         bao_test_container: '{{ inventory_hostname }}'
@@ -67,7 +77,9 @@ platforms:
     env:
       BAO_LOCAL_CONFIG: '{"storage": {"raft": {"path": "/openbao/file", "node_id":
         "molecule"}}, "api_addr": "https://127.0.0.1:8200", "cluster_addr": "https://127.0.0.1:8201",
-        "disable_mlock": true, "listener": [{"tcp": {"address": "0.0.0.0:8200", "tls_cert_file":
+        "disable_mlock": true, "unsafe_allow_api_audit_creation": true, "audit": [{"file":
+        {"declared": {"description": "Declared in the configuration", "options": {"file_path":
+        "discard"}}}}], "listener": [{"tcp": {"address": "0.0.0.0:8200", "tls_cert_file":
         "/openbao/tls/vault-cert.pem", "tls_key_file": "/openbao/tls/vault-key.pem"}}],
         "seal": {"static": {"current_key_id": "molecule-1", "current_key": "bW9sZWN1bGUtc3RhdGljLXNlYWwta2V5LTAxMjM0NTY="}}}'
     command:
@@ -85,7 +97,9 @@ platforms:
     env:
       BAO_LOCAL_CONFIG: '{"storage": {"raft": {"path": "/openbao/file", "node_id":
         "molecule"}}, "api_addr": "https://127.0.0.1:8200", "cluster_addr": "https://127.0.0.1:8201",
-        "disable_mlock": true, "listener": [{"tcp": {"address": "0.0.0.0:8200", "tls_cert_file":
+        "disable_mlock": true, "unsafe_allow_api_audit_creation": true, "audit": [{"file":
+        {"declared": {"description": "Declared in the configuration", "options": {"file_path":
+        "discard"}}}}], "listener": [{"tcp": {"address": "0.0.0.0:8200", "tls_cert_file":
         "/openbao/tls/vault-cert.pem", "tls_key_file": "/openbao/tls/vault-key.pem"}}],
         "seal": {"static": {"current_key_id": "molecule-1", "current_key": "bW9sZWN1bGUtc3RhdGljLXNlYWwta2V5LTAxMjM0NTY="}}}'
     command:

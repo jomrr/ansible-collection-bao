@@ -6,6 +6,7 @@ action_groups:
     - token_revoke
     - recovery_key
     - raft_snapshot
+    - audit_device
     - policy
     - mount
     - approle
