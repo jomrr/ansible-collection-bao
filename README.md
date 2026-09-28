@@ -38,6 +38,7 @@ ansible-galaxy collection install jomrr.bao
 | ---- | ---------- | ---------- | ----------- |
 | [`jomrr.bao.approle`](plugins/modules/approle.py) | yes | yes | Manage AppRoles |
 | [`jomrr.bao.approle_secret_id`](plugins/modules/approle_secret_id.py) | yes | yes | Register or revoke a custom Secret ID |
+| [`jomrr.bao.health_info`](plugins/modules/health_info.py) | n/a (read) | yes | Read the initialization, seal and readiness state |
 | [`jomrr.bao.kv2_secret`](plugins/modules/kv2_secret.py) | yes | yes | Manage KV version 2 secret data |
 | [`jomrr.bao.login`](plugins/modules/login.py) | no (action) | yes | Log in with an AppRole and return a session token |
 | [`jomrr.bao.logout`](plugins/modules/logout.py) | no (action) | yes | Revoke the session token |
@@ -99,8 +100,10 @@ in a fact with `no_log`, and revoke it at the end with `jomrr.bao.logout`:
 ```
 
 Set the connection options once through `module_defaults` for the collection's action
-group `group/jomrr.bao.all` and pass only the resource options to each task. `login` is
-not part of the group because it takes no token; give it `url` and `ca_file` directly.
+group `group/jomrr.bao.all` and pass only the resource options to each task. `login` and
+`health_info` are not part of the group because they take no token; give them `url` and
+`ca_file` directly. `jomrr.bao.health_info` reads the initialization, seal and readiness
+state without a session and, combined with `until`, waits for a usable server.
 Revoke the session in an `always` block with `jomrr.bao.logout`.
 
 ## Ordering

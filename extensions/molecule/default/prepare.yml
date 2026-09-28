@@ -19,11 +19,11 @@
         dest: "{{ bao_test_ca_file }}"
         mode: "0600"
 
-    - name: Wait for an unsealed server
-      ansible.builtin.uri:
-        url: "{{ bao_test_url }}/v1/sys/health"
-        ca_path: "{{ bao_test_ca_file }}"
+    - name: Wait for an initialized and unsealed server
+      jomrr.bao.health_info:
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
       register: bao_test_health
-      until: bao_test_health.status == 200
+      until: bao_test_health is succeeded and bao_test_health.ready
       retries: 20
       delay: 2

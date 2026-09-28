@@ -4,6 +4,8 @@
   connection: local
   gather_facts: false
   tasks:
+    - name: Check health_info
+      ansible.builtin.import_tasks: targets/health_info/tasks/main.yml
     - name: Check login
       ansible.builtin.import_tasks: targets/login/tasks/main.yml
     - name: Check logout

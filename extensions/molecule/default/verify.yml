@@ -19,6 +19,22 @@
     bao_ca_file: "{{ bao_test_ca_file }}"
     bao_token: "{{ bao_test_root_token }}"
   tasks:
+    - name: Read the health of the running server
+      jomrr.bao.health_info:
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
+      register: bao_test_running
+
+    - name: Verify the running state
+      ansible.builtin.assert:
+        that:
+          - bao_test_running is not changed
+          - bao_test_running.initialized
+          - not bao_test_running.sealed
+          - bao_test_running.ready
+          - bao_test_running.version is version('2.0.0', '>=')
+        quiet: true
+
     - name: Read the repaired resources
       ansible.builtin.uri:
         url: "{{ bao_test_url }}/v1/{{ item }}"
@@ -190,3 +206,27 @@
       loop:
         - kv/metadata/app/check-only
         - auth/users/users/check-only
+
+    # Sealing ends the scenario; it must stay the last step.
+    - name: Seal the server and read its health
+      block:
+        - name: Seal the server
+          ansible.builtin.uri:
+            url: "{{ bao_test_url }}/v1/sys/seal"
+            method: PUT
+            status_code: 204
+
+        - name: Read the health of the sealed server
+          jomrr.bao.health_info:
+            url: "{{ bao_test_url }}"
+            ca_file: "{{ bao_test_ca_file }}"
+          register: bao_test_sealed
+
+        - name: Verify the sealed state
+          ansible.builtin.assert:
+            that:
+              - bao_test_sealed is not changed
+              - bao_test_sealed.initialized
+              - bao_test_sealed.sealed
+              - not bao_test_sealed.ready
+            quiet: true
