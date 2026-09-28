@@ -54,6 +54,7 @@ ansible-galaxy collection install jomrr.bao
 | [`jomrr.bao.policy`](plugins/modules/policy.py) | yes | yes | Manage ACL policies |
 | [`jomrr.bao.ssh_ca`](plugins/modules/ssh_ca.py) | yes (public key) | yes | Generate or import the SSH certificate authority key |
 | [`jomrr.bao.ssh_role`](plugins/modules/ssh_role.py) | yes | yes | Manage SSH certificate roles |
+| [`jomrr.bao.token_revoke`](plugins/modules/token_revoke.py) | yes (accessor) | yes | Revoke another token by its accessor |
 | [`jomrr.bao.userpass_user`](plugins/modules/userpass_user.py) | yes | yes | Manage userpass users |
 
 ### Documentation Fragments
@@ -105,7 +106,9 @@ group `group/jomrr.bao.all` and pass only the resource options to each task. `lo
 `health_info` are not part of the group because they take no token; give them `url` and
 `ca_file` directly. `jomrr.bao.health_info` reads the initialization, seal and readiness
 state without a session and, combined with `until`, waits for a usable server.
-Revoke the session in an `always` block with `jomrr.bao.logout`.
+Revoke the session in an `always` block with `jomrr.bao.logout`. A token that cannot
+call the API itself, such as a verification token bound to another network, is revoked
+by its accessor with `jomrr.bao.token_revoke` and the retained session.
 
 ## Ordering
 

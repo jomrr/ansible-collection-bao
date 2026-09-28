@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # GNU General Public License v3.0+
 # (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
-"""Session actions: AppRole login and logout; not a public API."""
+"""Session actions: login, logout and token revocation; not a public API."""
 
 from __future__ import annotations
 
@@ -42,3 +42,18 @@ def logout(params: dict[str, Any], check_mode: bool, client: Api) -> dict[str, A
         return action_result(True, "Would revoke the session token")
     client.revoke_self()
     return action_result(True, "Revoked the session token")
+
+
+def revoke(params: dict[str, Any], check_mode: bool, client: Api) -> dict[str, Any]:
+    """Revoke another token by its accessor with the session token."""
+    accessor = str(params["accessor"]).strip()
+    if not accessor:
+        raise ValueError("accessor must not be empty")
+    if check_mode:
+        return action_result(True, f"Would revoke the token with accessor {accessor}")
+    response = client.write("auth/token/revoke-accessor", {"accessor": accessor})
+    if response is None:
+        return action_result(True, f"Revoked the token with accessor {accessor}")
+    # HTTP 200 with a warning means the server found no token to revoke.
+    warnings = "; ".join(str(item) for item in response.get("warnings") or [])
+    return action_result(False, warnings or f"No token found with accessor {accessor}")

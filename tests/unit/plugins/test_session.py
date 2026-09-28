@@ -2,14 +2,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # GNU General Public License v3.0+
 # (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
-"""Login and logout actions."""
+"""Login, logout and token revocation actions."""
 
 from __future__ import annotations
 
 import unittest
 
 from ansible_collections.jomrr.bao.plugins.module_utils.client import BaoError
-from ansible_collections.jomrr.bao.plugins.modules import login, logout
+from ansible_collections.jomrr.bao.plugins.modules import login, logout, token_revoke
 from ansible_collections.jomrr.bao.tests.unit.plugins.support import (
     FakeClient,
     run_module_under_test,
@@ -75,3 +75,35 @@ class SessionTests(unittest.TestCase):
         client = FakeClient()
         run_module_under_test(logout, {}, client, check_mode=True)
         self.assertEqual(client.calls, [])
+
+    def test_token_revoke(self) -> None:
+        """An empty response means revoked; a warning means nothing to revoke."""
+        path = "auth/token/revoke-accessor"
+        client = FakeClient()
+        result = run_module_under_test(token_revoke, {"accessor": "acc-1"}, client)
+        self.assertTrue(result["changed"])
+        self.assertEqual(client.calls, [("POST", path, {"accessor": "acc-1"})])
+        warning = {"data": None, "warnings": ["No token found with this accessor"]}
+        client = FakeClient({("POST", path): warning})
+        result = run_module_under_test(token_revoke, {"accessor": "acc-1"}, client)
+        self.assertFalse(result["changed"])
+        self.assertIn("No token found", result["msg"])
+
+    def test_token_revoke_check_mode_and_failures(self) -> None:
+        """Check mode and an empty accessor never call the API; errors fail."""
+        client = FakeClient()
+        result = run_module_under_test(
+            token_revoke, {"accessor": "acc-1"}, client, check_mode=True
+        )
+        self.assertTrue(result["changed"])
+        self.assertIn("Would revoke", result["msg"])
+        result = run_module_under_test(token_revoke, {"accessor": " "}, client)
+        self.assertTrue(result["failed"])
+        self.assertEqual(client.calls, [])
+        error = BaoError(
+            "POST auth/token/revoke-accessor failed with HTTP 403: denied", 403
+        )
+        client = FakeClient({("POST", "auth/token/revoke-accessor"): error})
+        result = run_module_under_test(token_revoke, {"accessor": "acc-1"}, client)
+        self.assertTrue(result["failed"])
+        self.assertIn("HTTP 403", result["msg"])

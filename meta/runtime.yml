@@ -3,6 +3,7 @@ requires_ansible: '>=2.20.0'
 action_groups:
   all:
     - logout
+    - token_revoke
     - policy
     - mount
     - approle

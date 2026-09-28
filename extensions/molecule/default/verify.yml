@@ -205,6 +205,65 @@
               - bao_test_role_probe.exists
             quiet: true
 
+    - name: Revoke a token that cannot call the API itself
+      block:
+        - name: Create an AppRole bound to a foreign network
+          jomrr.bao.approle:
+            name: bound
+            role_id: bound
+            token_policies: [reader]
+            token_bound_cidrs: [192.0.2.0/24]
+
+        - name: Register its Secret ID
+          jomrr.bao.approle_secret_id:
+            role: bound
+            secret_id: molecule-bound-secret-id-not-for-production
+
+        - name: Log in from outside the bound network
+          jomrr.bao.login:
+            url: "{{ bao_test_url }}"
+            ca_file: "{{ bao_test_ca_file }}"
+            role_id: bound
+            secret_id: molecule-bound-secret-id-not-for-production
+          register: bao_test_bound
+          no_log: true
+
+        - name: Read with the bound token
+          jomrr.bao.approle_info:
+            token: "{{ bao_test_bound.token }}"
+            name: bound
+          register: bao_test_bound_read
+          ignore_errors: true
+
+        - name: Log out with the bound token
+          jomrr.bao.logout:
+            token: "{{ bao_test_bound.token }}"
+          register: bao_test_bound_logout
+          ignore_errors: true
+
+        - name: Revoke the bound token by its accessor twice
+          jomrr.bao.token_revoke:
+            accessor: "{{ bao_test_bound.accessor }}"
+          register: bao_test_bound_revoke
+          loop: [first, repeated]
+
+        - name: Remove the bound AppRole
+          jomrr.bao.approle:
+            name: bound
+            state: absent
+
+        - name: Verify the revocation by accessor
+          ansible.builtin.assert:
+            that:
+              - bao_test_bound_read is failed
+              - "'HTTP 403' in bao_test_bound_read.msg"
+              - bao_test_bound_logout is failed
+              - "'HTTP 403' in bao_test_bound_logout.msg"
+              - bao_test_bound_revoke.results[0] is changed
+              - bao_test_bound_revoke.results[1] is not changed
+              - "'No token found' in bao_test_bound_revoke.results[1].msg"
+            quiet: true
+
     - name: Rotate the CRL
       jomrr.bao.pki_crl_rotate:
         mount: pki-int
