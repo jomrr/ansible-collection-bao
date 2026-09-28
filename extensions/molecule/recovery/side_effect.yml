@@ -1,0 +1,17 @@
+---
+- name: Leave a rotation attempt unfinished
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Start a rotation without submitting shares
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/sys/rotate/recovery/init"
+        method: POST
+        ca_path: "{{ bao_test_ca_file }}"
+        headers:
+          X-Vault-Token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+        body_format: json
+        body:
+          secret_shares: 5
+          secret_threshold: 3
+      no_log: true

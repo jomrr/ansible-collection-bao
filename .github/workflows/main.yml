@@ -102,6 +102,7 @@ jobs:
       matrix:
         scenario:
           - "default"
+          - "recovery"
     env:
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:

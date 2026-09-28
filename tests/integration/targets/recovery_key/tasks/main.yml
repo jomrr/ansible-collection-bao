@@ -1,0 +1,48 @@
+---
+- name: Reject a plain http URL before connecting
+  jomrr.bao.recovery_key:
+    url: http://bao.example.test:8200
+    token: synthetic-test-token
+  register: bao_test_recovery_key_url
+  ignore_errors: true
+
+- name: Fail on an unreachable server
+  jomrr.bao.recovery_key:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    state: rotated
+    keys: [synthetic-test-secret]
+  register: bao_test_recovery_key_offline
+  ignore_errors: true
+
+- name: Reject a threshold above the number of shares
+  jomrr.bao.recovery_key:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+    shares: 2
+    threshold: 3
+  register: bao_test_recovery_key_invalid
+  ignore_errors: true
+
+- name: Fail on an unreachable server in check mode
+  jomrr.bao.recovery_key:
+    url: https://127.0.0.1:1
+    token: synthetic-test-token
+  register: bao_test_recovery_key_check
+  check_mode: true
+  ignore_errors: true
+
+- name: Verify validation and error handling
+  ansible.builtin.assert:
+    that:
+      - bao_test_recovery_key_url is failed
+      - "'https' in bao_test_recovery_key_url.msg"
+      - bao_test_recovery_key_offline is failed
+      - "'failed' in bao_test_recovery_key_offline.msg"
+      - "'synthetic-test-token' not in bao_test_recovery_key_offline.msg"
+      - "'synthetic-test-secret' not in bao_test_recovery_key_offline.msg"
+      - bao_test_recovery_key_invalid is failed
+      - "'threshold must be between' in bao_test_recovery_key_invalid.msg"
+      - bao_test_recovery_key_check is failed
+      - bao_test_recovery_key_check is not changed
+    quiet: true

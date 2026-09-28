@@ -1,0 +1,65 @@
+---
+- name: Prepare an initialized server without recovery keys
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Read the CA certificate from the container
+      containers.podman.podman_container_exec:
+        name: "{{ bao_test_container }}"
+        argv: [cat, /openbao/tls/vault-ca.pem]
+      register: bao_test_ca
+      until: bao_test_ca is succeeded and 'BEGIN CERTIFICATE' in bao_test_ca.stdout
+      retries: 15
+      delay: 2
+      changed_when: false
+
+    - name: Store the CA certificate for the controller
+      ansible.builtin.copy:
+        content: "{{ bao_test_ca.stdout }}\n"
+        dest: "{{ bao_test_ca_file }}"
+        mode: "0600"
+
+    - name: Wait for the uninitialized server
+      jomrr.bao.health_info:
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
+      register: bao_test_health
+      until: bao_test_health is succeeded
+      retries: 20
+      delay: 2
+
+    - name: Verify the uninitialized state
+      ansible.builtin.assert:
+        that:
+          - not bao_test_health.initialized
+          - bao_test_health.sealed
+          - not bao_test_health.ready
+        quiet: true
+
+    - name: Initialize the server without recovery keys
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/sys/init"
+        method: PUT
+        ca_path: "{{ bao_test_ca_file }}"
+        body_format: json
+        body:
+          recovery_shares: 0
+          recovery_threshold: 0
+      register: bao_test_init
+      no_log: true
+
+    - name: Store the root token for the scenario
+      ansible.builtin.copy:
+        content: "{{ bao_test_init.json.root_token }}"
+        dest: "{{ bao_test_files }}-root-token"
+        mode: "0600"
+      no_log: true
+
+    - name: Wait for the unsealed server
+      jomrr.bao.health_info:
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
+      register: bao_test_health
+      until: bao_test_health is succeeded and bao_test_health.ready
+      retries: 20
+      delay: 2

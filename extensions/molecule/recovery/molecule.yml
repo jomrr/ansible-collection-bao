@@ -51,17 +51,37 @@ provisioner:
         bao_test_ca_file: '{{ bao_test_files }}-ca.pem'
         bao_test_root_token: molecule-root-token-not-for-production
 platforms:
-  - name: openbao-2-6
+  - name: openbao-recovery-2-6
     image: quay.io/openbao/openbao:2.6
     pre_build_image: true
-    command: server -dev -dev-tls -dev-tls-cert-dir=/tmp -dev-listen-address=0.0.0.0:8200
-      -dev-root-token-id=molecule-root-token-not-for-production
+    env:
+      BAO_LOCAL_CONFIG: '{"storage": {"inmem": {}}, "disable_mlock": true, "listener":
+        [{"tcp": {"address": "0.0.0.0:8200", "tls_cert_file": "/openbao/tls/vault-cert.pem",
+        "tls_key_file": "/openbao/tls/vault-key.pem"}}], "seal": {"static": {"current_key_id":
+        "molecule-1", "current_key": "bW9sZWN1bGUtc3RhdGljLXNlYWwta2V5LTAxMjM0NTY="}}}'
+    command:
+      - sh
+      - -c
+      - bao server -dev -dev-tls -dev-tls-cert-dir=/tmp -dev-listen-address=127.0.0.1:8300
+        >/dev/null 2>&1 & until [ -s /tmp/vault-key.pem ]; do sleep 1; done; mkdir
+        -p /openbao/tls; cp /tmp/vault-ca.pem /tmp/vault-cert.pem /tmp/vault-key.pem
+        /openbao/tls/; killall bao; wait; exec docker-entrypoint.sh server
     published_ports:
-      - 127.0.0.1:18206:8200
-  - name: openbao-2-7
+      - 127.0.0.1:18216:8200
+  - name: openbao-recovery-2-7
     image: quay.io/openbao/openbao:2.7
     pre_build_image: true
-    command: server -dev -dev-tls -dev-tls-cert-dir=/tmp -dev-listen-address=0.0.0.0:8200
-      -dev-root-token-id=molecule-root-token-not-for-production
+    env:
+      BAO_LOCAL_CONFIG: '{"storage": {"inmem": {}}, "disable_mlock": true, "listener":
+        [{"tcp": {"address": "0.0.0.0:8200", "tls_cert_file": "/openbao/tls/vault-cert.pem",
+        "tls_key_file": "/openbao/tls/vault-key.pem"}}], "seal": {"static": {"current_key_id":
+        "molecule-1", "current_key": "bW9sZWN1bGUtc3RhdGljLXNlYWwta2V5LTAxMjM0NTY="}}}'
+    command:
+      - sh
+      - -c
+      - bao server -dev -dev-tls -dev-tls-cert-dir=/tmp -dev-listen-address=127.0.0.1:8300
+        >/dev/null 2>&1 & until [ -s /tmp/vault-key.pem ]; do sleep 1; done; mkdir
+        -p /openbao/tls; cp /tmp/vault-ca.pem /tmp/vault-cert.pem /tmp/vault-key.pem
+        /openbao/tls/; killall bao; wait; exec docker-entrypoint.sh server
     published_ports:
-      - 127.0.0.1:18207:8200
+      - 127.0.0.1:18217:8200

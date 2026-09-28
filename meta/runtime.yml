@@ -4,6 +4,7 @@ action_groups:
   all:
     - logout
     - token_revoke
+    - recovery_key
     - policy
     - mount
     - approle

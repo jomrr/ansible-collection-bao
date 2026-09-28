@@ -1,0 +1,40 @@
+---
+- name: Converge recovery keys
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+  tasks:
+    - name: Predict the recovery key generation
+      jomrr.bao.recovery_key:
+        shares: 3
+        threshold: 2
+      register: bao_test_predicted
+      check_mode: true
+
+    - name: Generate recovery keys when none exist
+      jomrr.bao.recovery_key:
+        shares: 3
+        threshold: 2
+      register: bao_test_generated
+      no_log: true
+
+    - name: Keep the generated shares for the rotation
+      ansible.builtin.copy:
+        content: "{{ bao_test_generated.recovery_keys_base64 | to_json }}"
+        dest: "{{ bao_test_files }}-recovery-keys"
+        mode: "0600"
+      when: bao_test_generated.recovery_keys_base64 | length > 0
+      no_log: true
+
+    - name: Verify the prediction and the result
+      ansible.builtin.assert:
+        that:
+          - bao_test_predicted.changed == bao_test_generated.changed
+          - bao_test_predicted.recovery_keys == []
+          - bao_test_generated.recovery_keys | length == bao_test_generated.recovery_keys_base64 | length
+          - bao_test_generated.recovery_keys | length in [0, 3]
+        quiet: true

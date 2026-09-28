@@ -1,0 +1,103 @@
+---
+- name: Verify recovery key rotation
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+    ansible.builtin.uri:
+      ca_path: "{{ bao_test_ca_file }}"
+      headers:
+        X-Vault-Token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+  vars:
+    bao_test_shares: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-recovery-keys') | from_json }}"
+  tasks:
+    - name: Keep existing recovery keys
+      jomrr.bao.recovery_key:
+        shares: 5
+        threshold: 3
+      register: bao_test_kept
+
+    - name: Rotate while another attempt is unfinished
+      jomrr.bao.recovery_key:
+        state: rotated
+        keys: "{{ bao_test_shares[:2] }}"
+      register: bao_test_blocked
+      ignore_errors: true
+
+    - name: Rotate with too few shares
+      jomrr.bao.recovery_key:
+        state: rotated
+        keys: "{{ bao_test_shares[:1] }}"
+        force: true
+      register: bao_test_short
+      ignore_errors: true
+
+    - name: Predict the rotation
+      jomrr.bao.recovery_key:
+        state: rotated
+        keys: "{{ bao_test_shares[:2] }}"
+        force: true
+      register: bao_test_predicted
+      check_mode: true
+
+    - name: Cancel the unfinished attempt and rotate
+      jomrr.bao.recovery_key:
+        state: rotated
+        keys: "{{ bao_test_shares[:2] }}"
+        force: true
+      register: bao_test_rotated
+      no_log: true
+
+    - name: Rotate with the replaced shares
+      jomrr.bao.recovery_key:
+        state: rotated
+        keys: "{{ bao_test_shares }}"
+      register: bao_test_replaced
+      ignore_errors: true
+
+    - name: Read the rotation status and the seal layout
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/{{ item }}"
+      loop:
+        - sys/rotate/recovery/init
+        - sys/seal-status
+      register: bao_test_read
+
+    - name: Rotate with the current shares
+      jomrr.bao.recovery_key:
+        state: rotated
+        shares: 3
+        threshold: 2
+        keys: "{{ bao_test_rotated.recovery_keys_base64[:3] }}"
+      register: bao_test_again
+      no_log: true
+
+    - name: Verify generation, rotation and failure handling
+      ansible.builtin.assert:
+        that:
+          - bao_test_kept is not changed
+          - bao_test_kept.recovery_keys == []
+          - bao_test_kept.shares == 3
+          - bao_test_kept.threshold == 2
+          - bao_test_blocked is failed
+          - "'already in progress' in bao_test_blocked.msg"
+          - bao_test_short is failed
+          - "'needs 2 existing shares' in bao_test_short.msg"
+          - bao_test_predicted is changed
+          - bao_test_predicted.recovery_keys == []
+          - bao_test_rotated is changed
+          - bao_test_rotated.recovery_keys_base64 | length == 5
+          - bao_test_rotated.shares == 5
+          - bao_test_rotated.threshold == 3
+          - bao_test_rotated.recovery_keys_base64 | intersect(bao_test_shares) == []
+          - bao_test_replaced is failed
+          - "'the attempt was cancelled' in bao_test_replaced.msg"
+          - not bao_test_read.results[0].json.data.started
+          - bao_test_read.results[1].json.n == 5
+          - bao_test_read.results[1].json.t == 3
+          - bao_test_again is changed
+          - bao_test_again.recovery_keys_base64 | length == 3
+        quiet: true

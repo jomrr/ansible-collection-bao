@@ -53,6 +53,7 @@ ansible-galaxy collection install jomrr.bao
 | [`jomrr.bao.pki_issuer`](plugins/modules/pki_issuer.py) | yes | yes | Manage settings and default status of a PKI issuer |
 | [`jomrr.bao.pki_role`](plugins/modules/pki_role.py) | yes | yes | Manage PKI certificate roles |
 | [`jomrr.bao.policy`](plugins/modules/policy.py) | yes | yes | Manage ACL policies |
+| [`jomrr.bao.recovery_key`](plugins/modules/recovery_key.py) | yes (rotation on request) | yes | Generate recovery key shares and rotate them on request |
 | [`jomrr.bao.ssh_ca`](plugins/modules/ssh_ca.py) | yes (public key) | yes | Generate or import the SSH certificate authority key |
 | [`jomrr.bao.ssh_role`](plugins/modules/ssh_role.py) | yes | yes | Manage SSH certificate roles |
 | [`jomrr.bao.token_revoke`](plugins/modules/token_revoke.py) | yes (accessor) | yes | Revoke another token by its accessor |
@@ -110,6 +111,17 @@ state without a session and, combined with `until`, waits for a usable server.
 Revoke the session in an `always` block with `jomrr.bao.logout`. A token that cannot
 call the API itself, such as a verification token bound to another network, is revoked
 by its accessor with `jomrr.bao.token_revoke` and the retained session.
+
+## Recovery Keys
+
+A server initialized declaratively with an auto-unseal seal has no recovery keys.
+`jomrr.bao.recovery_key` generates the shares once and leaves existing shares untouched.
+Rotation is a separate, explicit call with `state: rotated` and the existing shares in
+`keys`; a failed rotation is cancelled, so the existing shares stay valid.
+
+The new shares are returned only by the call that creates them. Register the result with
+`no_log`, keep the shares outside of this server, or pass `pgp_keys` to receive them
+encrypted. The module needs OpenBao 2.4 or newer.
 
 ## Ordering
 

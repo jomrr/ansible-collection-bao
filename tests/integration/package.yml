@@ -12,6 +12,8 @@
       ansible.builtin.import_tasks: targets/logout/tasks/main.yml
     - name: Check token_revoke
       ansible.builtin.import_tasks: targets/token_revoke/tasks/main.yml
+    - name: Check recovery_key
+      ansible.builtin.import_tasks: targets/recovery_key/tasks/main.yml
     - name: Check policy
       ansible.builtin.import_tasks: targets/policy/tasks/main.yml
     - name: Check mount
