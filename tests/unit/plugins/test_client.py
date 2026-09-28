@@ -142,6 +142,29 @@ class ClientTests(unittest.TestCase):
         ):
             self.client.get("sys/health")
 
+    def test_binary_transfer(self) -> None:
+        """Downloads are streamed into a file object and uploads sent as binary body."""
+        source = io.BytesIO(b"snapshot-bytes")
+        target = io.BytesIO()
+        reply = Mock()
+        reply.read.side_effect = [b"snap", b"shot", b""]
+        reply.__enter__ = Mock(return_value=reply)
+        reply.__exit__ = Mock(return_value=False)
+        with patch.object(client_module, "open_url", return_value=reply) as open_url:
+            size = self.client.download("sys/storage/raft/snapshot", target)
+        self.assertEqual((size, target.getvalue()), (8, b"snapshot"))
+        self.assertIs(open_url.call_args.kwargs["decompress"], False)
+        with patch.object(
+            client_module, "open_url", return_value=response(b"")
+        ) as open_url:
+            self.client.upload("sys/storage/raft/snapshot", source, 14)
+        sent = open_url.call_args.kwargs
+        self.assertIs(sent["data"], source)
+        self.assertEqual(sent["method"], "POST")
+        self.assertEqual(sent["headers"]["Content-Length"], "14")
+        self.assertEqual(sent["headers"]["Content-Type"], "application/octet-stream")
+        self.assertEqual(sent["headers"]["X-Vault-Token"], "recognizable-token")
+
     def test_login_and_revoke(self) -> None:
         """Login sends no token header and revoke-self uses the given token."""
         auth = b'{"auth": {"client_token": "new-token", "accessor": "acc"}}'

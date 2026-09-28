@@ -5,6 +5,7 @@ action_groups:
     - logout
     - token_revoke
     - recovery_key
+    - raft_snapshot
     - policy
     - mount
     - approle

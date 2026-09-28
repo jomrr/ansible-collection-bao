@@ -103,6 +103,7 @@ jobs:
         scenario:
           - "default"
           - "recovery"
+          - "raft"
     env:
       ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
     defaults:

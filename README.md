@@ -53,6 +53,7 @@ ansible-galaxy collection install jomrr.bao
 | [`jomrr.bao.pki_issuer`](plugins/modules/pki_issuer.py) | yes | yes | Manage settings and default status of a PKI issuer |
 | [`jomrr.bao.pki_role`](plugins/modules/pki_role.py) | yes | yes | Manage PKI certificate roles |
 | [`jomrr.bao.policy`](plugins/modules/policy.py) | yes | yes | Manage ACL policies |
+| [`jomrr.bao.raft_snapshot`](plugins/modules/raft_snapshot.py) | yes (restore on request) | yes | Save a raft snapshot to a file and restore it on request |
 | [`jomrr.bao.recovery_key`](plugins/modules/recovery_key.py) | yes (rotation on request) | yes | Generate recovery key shares and rotate them on request |
 | [`jomrr.bao.ssh_ca`](plugins/modules/ssh_ca.py) | yes (public key) | yes | Generate or import the SSH certificate authority key |
 | [`jomrr.bao.ssh_role`](plugins/modules/ssh_role.py) | yes | yes | Manage SSH certificate roles |
@@ -122,6 +123,20 @@ Rotation is a separate, explicit call with `state: rotated` and the existing sha
 The new shares are returned only by the call that creates them. Register the result with
 `no_log`, keep the shares outside of this server, or pass `pgp_keys` to receive them
 encrypted. The module needs OpenBao 2.4 or newer.
+
+## Raft Snapshots
+
+`jomrr.bao.raft_snapshot` saves a snapshot of the integrated raft storage to a file on
+the host that runs the task. An existing file is kept, so a path is written once: use a
+path with a timestamp for recurring backups or set `overwrite`. The snapshot is
+downloaded into a private temporary file and moved into place after the download
+completed. The file mode defaults to `0600`; `owner`, `group` and `mode` work as in
+`ansible.builtin.copy`.
+
+Restoring is a separate, explicit call with `state: restored`. It replaces the complete
+server state, including everything written after the snapshot. `force: true` skips the
+check that the seal keys match the snapshot. Raise `timeout` for large snapshots. A
+snapshot holds the complete storage of the server; protect the file like a secret.
 
 ## Ordering
 

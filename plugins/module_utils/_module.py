@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.jomrr.bao.plugins.module_utils.client import (
@@ -23,6 +23,34 @@ if TYPE_CHECKING:
 Params = dict[str, Any]
 Spec = dict[str, dict[str, Any]]
 Run = Callable[[Params, bool, Api], dict[str, Any]]
+
+
+class FileModule(Protocol):
+    """The part of AnsibleModule used by modules that manage a file."""
+
+    params: Params
+    check_mode: bool
+
+    def load_file_common_arguments(self, params: Params) -> dict[str, Any]:
+        """Return the file attributes requested through the common file options."""
+        raise NotImplementedError
+
+    def set_fs_attributes_if_different(
+        self, file_args: dict[str, Any], changed: bool
+    ) -> bool:
+        """Apply owner, group and mode and return whether anything changed."""
+        raise NotImplementedError
+
+    def atomic_move(self, src: str, dest: str, unsafe_writes: bool = False) -> None:
+        """Move a file into place atomically."""
+        raise NotImplementedError
+
+    def sha256(self, filename: str) -> str | None:
+        """Return the SHA-256 digest of a file."""
+        raise NotImplementedError
+
+
+FileRun = Callable[[FileModule, Api], dict[str, Any]]
 MASK = "********"
 # Names that look secret to ansible-test's validate-modules heuristic but are not.
 SECRET_LOOKALIKE = re.compile(r"pass|pwd|secret|token|key")
@@ -111,10 +139,10 @@ def sanitize(message: str, secrets: Iterable[str]) -> str:
     return message
 
 
-def run_module(
-    argument_spec: Spec, run: Run, *, token: bool = True, **module_kwargs: Any
-) -> None:
-    """Run a module operation and finish through exit_json or fail_json."""
+def _prepare(
+    argument_spec: Spec, token: bool, module_kwargs: dict[str, Any]
+) -> tuple[AnsibleModule, list[str]]:
+    """Create the module with the connection options and collect its secrets."""
     spec = {**connection_argument_spec(token), **argument_spec}
     for name, options in spec.items():
         if "no_log" not in options and SECRET_LOOKALIKE.search(name):
@@ -122,12 +150,35 @@ def run_module(
     module = cast(Callable[..., AnsibleModule], AnsibleModule)(
         argument_spec=spec, supports_check_mode=True, **module_kwargs
     )
-    params = cast(Params, module.params)
-    secrets = secret_values(params, spec)
+    return module, secret_values(cast(Params, module.params), spec)
+
+
+def _finish(
+    module: AnsibleModule, secrets: list[str], operation: Callable[[], dict[str, Any]]
+) -> None:
+    """Run the operation and finish through exit_json or fail_json."""
     fail_json = cast("Callable[..., NoReturn]", module.fail_json)
     exit_json = cast("Callable[..., NoReturn]", module.exit_json)
     try:
-        result = run(params, bool(module.check_mode), build_client(params))
-    except (BaoError, ValueError, TypeError) as exc:
+        result = operation()
+    except (BaoError, ValueError, TypeError, OSError) as exc:
         fail_json(msg=sanitize(str(exc), secrets))
     exit_json(**result)
+
+
+def run_module(
+    argument_spec: Spec, run: Run, *, token: bool = True, **module_kwargs: Any
+) -> None:
+    """Run a module operation on the API."""
+    module, secrets = _prepare(argument_spec, token, module_kwargs)
+    params = cast(Params, module.params)
+    check_mode = bool(module.check_mode)
+    _finish(module, secrets, lambda: run(params, check_mode, build_client(params)))
+
+
+def run_file_module(argument_spec: Spec, run: FileRun, **module_kwargs: Any) -> None:
+    """Run a module operation that also manages a file on the host."""
+    kwargs = {**module_kwargs, "add_file_common_args": True}
+    module, secrets = _prepare(argument_spec, True, kwargs)
+    client = build_client(cast(Params, module.params))
+    _finish(module, secrets, lambda: run(cast(FileModule, module), client))

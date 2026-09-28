@@ -333,6 +333,29 @@
         - kv/metadata/app/check-only
         - auth/users/users/check-only
 
+    - name: Reject a snapshot of a server without raft storage
+      block:
+        - name: Save a snapshot without raft storage
+          jomrr.bao.raft_snapshot:
+            path: "{{ bao_test_files }}-raft.snap"
+          register: bao_test_snapshot
+          ignore_errors: true
+
+        - name: Find files left by the rejected snapshot
+          ansible.builtin.find:
+            paths: "{{ bao_test_files | dirname }}"
+            patterns: ["{{ inventory_hostname }}-raft.snap", .bao-snapshot-*]
+            hidden: true
+          register: bao_test_snapshot_files
+
+        - name: Verify the rejected snapshot
+          ansible.builtin.assert:
+            that:
+              - bao_test_snapshot is failed
+              - "'HTTP 404' in bao_test_snapshot.msg"
+              - bao_test_snapshot_files.matched == 0
+            quiet: true
+
     # Sealing ends the scenario; it must stay the last step.
     - name: Seal the server and read its health
       block:

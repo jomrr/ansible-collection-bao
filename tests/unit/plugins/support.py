@@ -6,16 +6,20 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 from collections.abc import Callable
+from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import Any, BinaryIO, cast
 from unittest.mock import Mock, patch
 
+from ansible.module_utils.basic import FILE_COMMON_ARGUMENTS
 from ansible_collections.jomrr.bao.plugins.module_utils import _module
 from ansible_collections.jomrr.bao.plugins.module_utils.client import BaoError, Json
 
 Call = tuple[str, str, Json | None]
-WRITE_METHODS = ("POST", "PATCH", "DELETE", "LOGIN")
+WRITE_METHODS = ("POST", "PATCH", "DELETE", "LOGIN", "UPLOAD")
 CONNECTION = {
     "url": "https://bao.example.test:8200",
     "token": "fake-token",
@@ -94,6 +98,17 @@ class FakeClient:
         clone.calls = self.calls
         return clone
 
+    def download(self, path: str, target: BinaryIO) -> int:
+        """Write the canned binary response into the file object."""
+        content = bytes(self._respond("DOWNLOAD", path) or b"")
+        target.write(content)
+        return len(content)
+
+    def upload(self, path: str, source: BinaryIO, size: int) -> None:
+        """Record the digest of an uploaded file."""
+        digest = hashlib.sha256(source.read()).hexdigest()
+        self._respond("UPLOAD", path, {"size": size, "sha256": digest})
+
     def writes(self) -> list[Call]:
         """Return the recorded mutating calls."""
         return [call for call in self.calls if call[0] in WRITE_METHODS]
@@ -127,9 +142,20 @@ def run_module_under_test(
     mock.check_mode = check_mode
     mock.exit_json.side_effect = _exit
     mock.fail_json.side_effect = _fail
+    mock.atomic_move.side_effect = lambda src, dest, **_options: os.replace(src, dest)
+    mock.set_fs_attributes_if_different.side_effect = lambda file_args, changed: changed
+    mock.load_file_common_arguments.side_effect = lambda params: {
+        "path": params["path"],
+        "mode": params["mode"],
+    }
+    mock.sha256.side_effect = lambda name: hashlib.sha256(
+        Path(name).read_bytes()
+    ).hexdigest()
 
     def make_module(**kwargs: Any) -> Mock:
-        spec: dict[str, dict[str, Any]] = kwargs["argument_spec"]
+        spec: dict[str, dict[str, Any]] = dict(kwargs["argument_spec"])
+        if kwargs.get("add_file_common_args"):
+            spec.update(cast(dict[str, dict[str, Any]], FILE_COMMON_ARGUMENTS))
         mock.params = {key: options.get("default") for key, options in spec.items()}
         mock.params.update(CONNECTION)
         mock.params.update(inputs)

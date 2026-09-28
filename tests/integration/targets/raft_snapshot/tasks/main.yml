@@ -1,0 +1,66 @@
+---
+- name: Allocate an isolated snapshot directory
+  ansible.builtin.tempfile:
+    state: directory
+  register: bao_test_raft_snapshot_dir
+
+- name: Exercise validation without a server
+  block:
+    - name: Reject a plain http URL before connecting
+      jomrr.bao.raft_snapshot:
+        url: http://bao.example.test:8200
+        token: synthetic-test-token
+        path: "{{ bao_test_raft_snapshot_dir.path }}/raft.snap"
+      register: bao_test_raft_snapshot_url
+      ignore_errors: true
+
+    - name: Fail on an unreachable server
+      jomrr.bao.raft_snapshot:
+        url: https://127.0.0.1:1
+        token: synthetic-test-token
+        path: "{{ bao_test_raft_snapshot_dir.path }}/raft.snap"
+      register: bao_test_raft_snapshot_offline
+      ignore_errors: true
+
+    - name: Reject the restore of a missing file
+      jomrr.bao.raft_snapshot:
+        url: https://127.0.0.1:1
+        token: synthetic-test-token
+        path: "{{ bao_test_raft_snapshot_dir.path }}/missing.snap"
+        state: restored
+      register: bao_test_raft_snapshot_missing
+      ignore_errors: true
+
+    - name: Report the pending download in check mode without connecting
+      jomrr.bao.raft_snapshot:
+        url: https://127.0.0.1:1
+        token: synthetic-test-token
+        path: "{{ bao_test_raft_snapshot_dir.path }}/raft.snap"
+      register: bao_test_raft_snapshot_check
+      check_mode: true
+
+    - name: List the snapshot directory
+      ansible.builtin.find:
+        paths: "{{ bao_test_raft_snapshot_dir.path }}"
+        hidden: true
+      register: bao_test_raft_snapshot_files
+
+    - name: Verify validation and error handling
+      ansible.builtin.assert:
+        that:
+          - bao_test_raft_snapshot_url is failed
+          - "'https' in bao_test_raft_snapshot_url.msg"
+          - bao_test_raft_snapshot_offline is failed
+          - "'failed' in bao_test_raft_snapshot_offline.msg"
+          - "'synthetic-test-token' not in bao_test_raft_snapshot_offline.msg"
+          - bao_test_raft_snapshot_missing is failed
+          - "'does not exist' in bao_test_raft_snapshot_missing.msg"
+          - bao_test_raft_snapshot_check is changed
+          - "'Would save' in bao_test_raft_snapshot_check.msg"
+          - bao_test_raft_snapshot_files.matched == 0
+        quiet: true
+  always:
+    - name: Remove the snapshot directory
+      ansible.builtin.file:
+        path: "{{ bao_test_raft_snapshot_dir.path }}"
+        state: absent

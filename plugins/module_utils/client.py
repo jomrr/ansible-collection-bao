@@ -6,18 +6,20 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import urllib.error
 import urllib.parse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from http.client import HTTPResponse
-from typing import Any, Protocol, cast
+from typing import Any, BinaryIO, Protocol, cast
 
 from ansible.module_utils.urls import ConnectionError as UrlConnectionError
 from ansible.module_utils.urls import SSLValidationError, open_url
 
 Json = dict[str, Any]
 CONTENT_TYPES = {"PATCH": "application/merge-patch+json"}
+CHUNK = 65536
 
 
 class BaoError(Exception):
@@ -68,6 +70,14 @@ class Api(Protocol):
 
     def with_token(self, token: str) -> Api:
         """Return a client for the same server using another token."""
+        raise NotImplementedError
+
+    def download(self, path: str, target: BinaryIO) -> int:
+        """Stream a binary response into a file object and return its size."""
+        raise NotImplementedError
+
+    def upload(self, path: str, source: BinaryIO, size: int) -> None:
+        """POST the content of a file object as binary body."""
         raise NotImplementedError
 
 
@@ -161,6 +171,41 @@ class BaoClient:
             headers["Content-Type"] = CONTENT_TYPES.get(method, "application/json")
         return headers
 
+    @contextlib.contextmanager
+    def _response(
+        self,
+        method: str,
+        path: str,
+        *,
+        data: bytes | BinaryIO | None = None,
+        headers: dict[str, str] | None = None,
+        query: dict[str, str] | None = None,
+    ) -> Iterator[HTTPResponse]:
+        """Open one request below /v1 and translate HTTP and transport errors."""
+        try:
+            with cast(Callable[..., HTTPResponse], open_url)(
+                self._url(path, query),
+                data=data,
+                headers=headers or {},
+                method=method,
+                timeout=self.timeout,
+                validate_certs=True,
+                ca_path=self.ca_file,
+                follow_redirects="none",
+                use_netrc=False,
+                decompress=False,
+            ) as response:
+                yield response
+        except urllib.error.HTTPError as exc:
+            raise _http_error(method, path, exc) from exc
+        except (
+            urllib.error.URLError,
+            UrlConnectionError,
+            SSLValidationError,
+            OSError,
+        ) as exc:
+            raise BaoError(f"{method} {path} failed: {_reason(exc)}") from exc
+
     def request(
         self,
         method: str,
@@ -171,28 +216,32 @@ class BaoClient:
     ) -> Json | None:
         """Execute one API request below /v1 and return the parsed body."""
         data = None if body is None else json.dumps(body).encode("utf-8")
-        try:
-            with cast(Callable[..., HTTPResponse], open_url)(
-                self._url(path, query),
-                data=data,
-                headers=self._headers(method, body),
-                method=method,
-                timeout=self.timeout,
-                validate_certs=True,
-                ca_path=self.ca_file,
-                follow_redirects="none",
-                use_netrc=False,
-            ) as response:
-                return _decode(response.read())
-        except urllib.error.HTTPError as exc:
-            raise _http_error(method, path, exc) from exc
-        except (
-            urllib.error.URLError,
-            UrlConnectionError,
-            SSLValidationError,
-            OSError,
-        ) as exc:
-            raise BaoError(f"{method} {path} failed: {_reason(exc)}") from exc
+        headers = self._headers(method, body)
+        with self._response(
+            method, path, data=data, headers=headers, query=query
+        ) as response:
+            return _decode(response.read())
+
+    def download(self, path: str, target: BinaryIO) -> int:
+        """Stream a binary response into a file object and return its size."""
+        size = 0
+        with self._response(
+            "GET", path, headers=self._headers("GET", None)
+        ) as response:
+            for chunk in iter(lambda: response.read(CHUNK), b""):
+                target.write(chunk)
+                size += len(chunk)
+        return size
+
+    def upload(self, path: str, source: BinaryIO, size: int) -> None:
+        """POST the content of a file object as binary body."""
+        headers = {
+            **self._headers("POST", None),
+            "Content-Type": "application/octet-stream",
+            "Content-Length": str(size),
+        }
+        with self._response("POST", path, data=source, headers=headers) as response:
+            response.read()
 
     def get(self, path: str, query: dict[str, str] | None = None) -> Json | None:
         """Return the data mapping of a GET response or None for HTTP 404."""

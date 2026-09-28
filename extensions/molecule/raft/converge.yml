@@ -1,0 +1,44 @@
+---
+- name: Converge a raft snapshot
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+  tasks:
+    - name: Write the policy contained in the snapshot
+      jomrr.bao.policy:
+        name: raft-saved
+        rules: |
+          path "kv/data/saved/*" {
+            capabilities = ["read"]
+          }
+
+    - name: Predict the snapshot
+      jomrr.bao.raft_snapshot:
+        path: "{{ bao_test_files }}-raft.snap"
+      register: bao_test_predicted
+      check_mode: true
+
+    - name: Save a snapshot once
+      jomrr.bao.raft_snapshot:
+        path: "{{ bao_test_files }}-raft.snap"
+      register: bao_test_saved
+
+    - name: Read the snapshot file
+      ansible.builtin.stat:
+        path: "{{ bao_test_files }}-raft.snap"
+        checksum_algorithm: sha256
+      register: bao_test_file
+
+    - name: Verify the prediction and the file
+      ansible.builtin.assert:
+        that:
+          - bao_test_predicted.changed == bao_test_saved.changed
+          - bao_test_file.stat.mode == '0600'
+          - bao_test_saved.size == bao_test_file.stat.size
+          - bao_test_saved.size > 0
+          - bao_test_saved.checksum == bao_test_file.stat.checksum
+        quiet: true

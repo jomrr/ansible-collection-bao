@@ -1,0 +1,140 @@
+---
+- name: Verify the snapshot restore
+  hosts: all
+  gather_facts: false
+  module_defaults:
+    group/jomrr.bao.all:
+      url: "{{ bao_test_url }}"
+      ca_file: "{{ bao_test_ca_file }}"
+      token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+    ansible.builtin.uri:
+      ca_path: "{{ bao_test_ca_file }}"
+      headers:
+        X-Vault-Token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+  tasks:
+    - name: Predict the restore
+      jomrr.bao.raft_snapshot:
+        path: "{{ bao_test_files }}-raft.snap"
+        state: restored
+      register: bao_test_predicted
+      check_mode: true
+
+    - name: Read the policy written after the snapshot
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/sys/policies/acl/raft-later"
+
+    - name: Restore the snapshot
+      jomrr.bao.raft_snapshot:
+        path: "{{ bao_test_files }}-raft.snap"
+        state: restored
+      register: bao_test_restored
+
+    - name: Wait for the restored server
+      jomrr.bao.health_info: &bao_test_health
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
+      register: bao_test_health
+      until: bao_test_health is succeeded and bao_test_health.ready
+      retries: 20
+      delay: 2
+
+    - name: Read the policies after the restore
+      ansible.builtin.uri:
+        url: "{{ bao_test_url }}/v1/sys/policies/acl/{{ item.name }}"
+        status_code: "{{ item.status }}"
+      loop:
+        - name: raft-saved
+          status: 200
+        - name: raft-later
+          status: 404
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Restore a file that is no snapshot
+      block:
+        - name: Write a file that is no snapshot
+          ansible.builtin.copy:
+            content: "no snapshot\n"
+            dest: "{{ bao_test_files }}-invalid.snap"
+            mode: "0600"
+
+        - name: Restore the invalid file
+          jomrr.bao.raft_snapshot:
+            path: "{{ bao_test_files }}-invalid.snap"
+            state: restored
+          register: bao_test_invalid
+          ignore_errors: true
+
+        - name: Read the health after the rejected restore
+          jomrr.bao.health_info: *bao_test_health
+          register: bao_test_health
+
+    - name: Keep, adjust and replace the snapshot file
+      block:
+        - name: Keep the existing snapshot file
+          jomrr.bao.raft_snapshot:
+            path: "{{ bao_test_files }}-raft.snap"
+          register: bao_test_kept
+
+        - name: Adjust the mode of the existing snapshot file
+          jomrr.bao.raft_snapshot:
+            path: "{{ bao_test_files }}-raft.snap"
+            mode: "0640"
+          register: bao_test_mode
+
+        - name: Replace the snapshot file
+          jomrr.bao.raft_snapshot:
+            path: "{{ bao_test_files }}-raft.snap"
+            overwrite: true
+          register: bao_test_replaced
+
+        - name: Read the replaced snapshot file
+          ansible.builtin.stat:
+            path: "{{ bao_test_files }}-raft.snap"
+          register: bao_test_file
+
+    - name: Restore the replaced snapshot without the seal key check
+      jomrr.bao.raft_snapshot:
+        path: "{{ bao_test_files }}-raft.snap"
+        state: restored
+        force: true
+      register: bao_test_forced
+
+    - name: Wait for the server after the forced restore
+      jomrr.bao.health_info: *bao_test_health
+      register: bao_test_health
+      until: bao_test_health is succeeded and bao_test_health.ready
+      retries: 20
+      delay: 2
+
+    - name: Save a snapshot into a missing directory
+      jomrr.bao.raft_snapshot:
+        path: "{{ bao_test_files }}-missing/raft.snap"
+      register: bao_test_missing
+      ignore_errors: true
+
+    - name: Find temporary downloads
+      ansible.builtin.find:
+        paths: "{{ bao_test_files | dirname }}"
+        patterns: .bao-snapshot-*
+        hidden: true
+      register: bao_test_temporary
+
+    - name: Verify restore, file handling and errors
+      ansible.builtin.assert:
+        that:
+          - bao_test_predicted is changed
+          - "'Would restore' in bao_test_predicted.msg"
+          - bao_test_restored is changed
+          - bao_test_invalid is failed
+          - "'sys/storage/raft/snapshot failed with HTTP' in bao_test_invalid.msg"
+          - bao_test_kept is not changed
+          - bao_test_mode is changed
+          - bao_test_replaced is changed
+          - bao_test_file.stat.mode == '0600'
+          - bao_test_forced is changed
+          - bao_test_health.ready
+          - bao_test_missing is failed
+          - "'does not exist' in bao_test_missing.msg"
+          - bao_test_temporary.matched == 0
+        quiet: true

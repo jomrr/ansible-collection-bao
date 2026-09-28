@@ -1,0 +1,15 @@
+---
+- name: Change the server after the snapshot
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Write a policy the snapshot does not contain
+      jomrr.bao.policy:
+        url: "{{ bao_test_url }}"
+        ca_file: "{{ bao_test_ca_file }}"
+        token: "{{ lookup('ansible.builtin.file', bao_test_files ~ '-root-token') }}"
+        name: raft-later
+        rules: |
+          path "kv/data/later/*" {
+            capabilities = ["read"]
+          }
