@@ -59,7 +59,7 @@ class HealthInfoTests(unittest.TestCase):
         error = BaoError("GET sys/health failed: [Errno 111] Connection refused")
         bodies: tuple[Any, ...] = (error, None, {"errors": []})
         for body in bodies:
-            with self.subTest(body=body):
+            with self.subTest(body=repr(body)):
                 result, _client = read(body)
                 self.assertTrue(result["failed"])
                 self.assertIn("sys/health", result["msg"])
