@@ -138,6 +138,73 @@
               - bao_test_ssh_again.public_key == bao_test_read.results[8].json.data.public_key
             quiet: true
 
+    - name: Read AppRoles and roll back a binding change
+      block:
+        - name: Read the restricted AppRole
+          jomrr.bao.approle_info:
+            name: restricted
+          register: bao_test_role_before
+
+        - name: Read a missing AppRole
+          jomrr.bao.approle_info:
+            name: missing
+          register: bao_test_role_missing
+
+        - name: Change the bindings of the restricted AppRole
+          jomrr.bao.approle:
+            name: restricted
+            secret_id_bound_cidrs: [192.0.2.0/24]
+            token_bound_cidrs: [192.0.2.0/24]
+          register: bao_test_role_changed
+
+        - name: Restore the bindings from the earlier read
+          jomrr.bao.approle:
+            name: restricted
+            secret_id_bound_cidrs: "{{ bao_test_role_before.secret_id_bound_cidrs }}"
+            token_bound_cidrs: "{{ bao_test_role_before.token_bound_cidrs }}"
+          register: bao_test_role_restored
+
+        - name: Read the restored AppRole
+          jomrr.bao.approle_info:
+            name: restricted
+          register: bao_test_role_after
+
+        - name: Log in with a new verification token
+          jomrr.bao.login:
+            url: "{{ bao_test_url }}"
+            ca_file: "{{ bao_test_ca_file }}"
+            role_id: molecule-admin
+            secret_id: molecule-admin-secret-id-not-for-production
+          register: bao_test_probe
+          no_log: true
+
+        - name: Read the AppRole with the verification token
+          jomrr.bao.approle_info:
+            token: "{{ bao_test_probe.token }}"
+            name: molecule-admin
+          register: bao_test_role_probe
+
+        - name: Close the verification session
+          jomrr.bao.logout:
+            token: "{{ bao_test_probe.token }}"
+
+        - name: Verify the reads and the rollback
+          ansible.builtin.assert:
+            that:
+              - bao_test_role_before is not changed
+              - bao_test_role_before.exists
+              - "'203.0.113.7/32' in bao_test_role_before.secret_id_bound_cidrs"
+              - "'203.0.113.7' in bao_test_role_before.token_bound_cidrs"
+              - bao_test_role_before.role.token_policies == ['reader']
+              - not bao_test_role_missing.exists
+              - bao_test_role_missing.secret_id_bound_cidrs == []
+              - bao_test_role_changed is changed
+              - bao_test_role_restored is changed
+              - bao_test_role_after.secret_id_bound_cidrs | sort == bao_test_role_before.secret_id_bound_cidrs | sort
+              - bao_test_role_after.token_bound_cidrs | sort == bao_test_role_before.token_bound_cidrs | sort
+              - bao_test_role_probe.exists
+            quiet: true
+
     - name: Rotate the CRL
       jomrr.bao.pki_crl_rotate:
         mount: pki-int

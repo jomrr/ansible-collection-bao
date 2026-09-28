@@ -9,7 +9,11 @@ from __future__ import annotations
 import unittest
 
 from ansible_collections.jomrr.bao.plugins.module_utils.client import BaoError
-from ansible_collections.jomrr.bao.plugins.modules import approle, approle_secret_id
+from ansible_collections.jomrr.bao.plugins.modules import (
+    approle,
+    approle_info,
+    approle_secret_id,
+)
 from ansible_collections.jomrr.bao.tests.unit.plugins.support import (
     FakeClient,
     run_module_under_test,
@@ -146,6 +150,58 @@ class AppRoleTests(unittest.TestCase):
             approle, {"name": "app", "state": "absent"}, client
         )
         self.assertFalse(result["changed"])
+
+
+class AppRoleInfoTests(unittest.TestCase):
+    """The role is only read; bindings keep the server's notation."""
+
+    def test_existing_role(self) -> None:
+        """Bindings come back as reported and unset lists as empty lists."""
+        current = {
+            **CURRENT,
+            "secret_id_bound_cidrs": None,
+            "token_bound_cidrs": ["10.0.0.1", "10.1.0.0/24"],
+        }
+        for check_mode in (False, True):
+            with self.subTest(check_mode=check_mode):
+                client = FakeClient({("GET", ROLE): current})
+                result = run_module_under_test(
+                    approle_info, {"name": "app"}, client, check_mode=check_mode
+                )
+                self.assertFalse(result["changed"])
+                self.assertTrue(result["exists"])
+                self.assertEqual(result["role"], current)
+                self.assertEqual(result["secret_id_bound_cidrs"], [])
+                self.assertEqual(
+                    result["token_bound_cidrs"], ["10.0.0.1", "10.1.0.0/24"]
+                )
+                self.assertEqual(client.calls, [("GET", ROLE, None)])
+
+    def test_host_network_notation_is_kept(self) -> None:
+        """Secret ID bindings keep the suffix the server needs when written back."""
+        current = {**CURRENT, "secret_id_bound_cidrs": ["10.0.0.1/32"]}
+        client = FakeClient({("GET", ROLE): current})
+        result = run_module_under_test(approle_info, {"name": "app"}, client)
+        self.assertEqual(result["secret_id_bound_cidrs"], ["10.0.0.1/32"])
+
+    def test_missing_role(self) -> None:
+        """A missing role is reported, not treated as an error."""
+        client = FakeClient()
+        result = run_module_under_test(approle_info, {"name": "app"}, client)
+        self.assertFalse(result["changed"])
+        self.assertFalse(result["exists"])
+        self.assertEqual(result["role"], {})
+        self.assertEqual(result["secret_id_bound_cidrs"], [])
+        self.assertEqual(result["token_bound_cidrs"], [])
+
+    def test_denied_read_fails(self) -> None:
+        """A token that may not read the role fails the task."""
+        error = BaoError(f"GET {ROLE} failed with HTTP 403: permission denied", 403)
+        client = FakeClient({("GET", ROLE): error})
+        result = run_module_under_test(approle_info, {"name": "app"}, client)
+        self.assertTrue(result["failed"])
+        self.assertIn("HTTP 403", result["msg"])
+        self.assertNotIn("fake-token", result["msg"])
 
 
 class SecretIdTests(unittest.TestCase):

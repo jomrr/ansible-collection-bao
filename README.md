@@ -37,6 +37,7 @@ ansible-galaxy collection install jomrr.bao
 | Name | idempotent | check_mode | Description |
 | ---- | ---------- | ---------- | ----------- |
 | [`jomrr.bao.approle`](plugins/modules/approle.py) | yes | yes | Manage AppRoles |
+| [`jomrr.bao.approle_info`](plugins/modules/approle_info.py) | n/a (read) | yes | Read an AppRole and its network bindings |
 | [`jomrr.bao.approle_secret_id`](plugins/modules/approle_secret_id.py) | yes | yes | Register or revoke a custom Secret ID |
 | [`jomrr.bao.health_info`](plugins/modules/health_info.py) | n/a (read) | yes | Read the initialization, seal and readiness state |
 | [`jomrr.bao.kv2_secret`](plugins/modules/kv2_secret.py) | yes | yes | Manage KV version 2 secret data |

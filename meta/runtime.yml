@@ -6,6 +6,7 @@ action_groups:
     - policy
     - mount
     - approle
+    - approle_info
     - approle_secret_id
     - userpass_user
     - kv2_secret

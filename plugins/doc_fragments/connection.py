@@ -66,3 +66,14 @@ attributes:
     description: Actions return no diff.
 options: {}
 """
+
+    INFO: ClassVar[str] = r"""
+attributes:
+  check_mode:
+    support: full
+    description: Reads the same state in check mode.
+  diff_mode:
+    support: none
+    description: The module reads state and returns no diff.
+options: {}
+"""

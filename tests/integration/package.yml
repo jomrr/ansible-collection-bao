@@ -16,6 +16,8 @@
       ansible.builtin.import_tasks: targets/mount/tasks/main.yml
     - name: Check approle
       ansible.builtin.import_tasks: targets/approle/tasks/main.yml
+    - name: Check approle_info
+      ansible.builtin.import_tasks: targets/approle_info/tasks/main.yml
     - name: Check approle_secret_id
       ansible.builtin.import_tasks: targets/approle_secret_id/tasks/main.yml
     - name: Check userpass_user

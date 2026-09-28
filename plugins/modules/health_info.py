@@ -14,14 +14,7 @@ description:
 - Read the state of a server from C(sys/health) without a token.
 - The module never changes anything and fails only when the server cannot be reached or returns no state.
 - Combine it with C(until), C(retries) and C(delay) to wait for an initialized and unsealed server.
-extends_documentation_fragment: [jomrr.bao.connection]
-attributes:
-  check_mode:
-    support: full
-    description: Reads the same state in check mode.
-  diff_mode:
-    support: none
-    description: The module reads state and returns no diff.
+extends_documentation_fragment: [jomrr.bao.connection, jomrr.bao.connection.info]
 options: {}
 """
 

@@ -9,7 +9,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ansible_collections.jomrr.bao.plugins.module_utils._compare import Fields, view
+from ansible_collections.jomrr.bao.plugins.module_utils._compare import (
+    Fields,
+    as_list,
+    view,
+)
 from ansible_collections.jomrr.bao.plugins.module_utils._result import state_result
 from ansible_collections.jomrr.bao.plugins.module_utils._state import (
     TOKEN_FIELDS,
@@ -61,6 +65,20 @@ def run_role(params: dict[str, Any], check_mode: bool, client: Api) -> dict[str,
     elif role_id is None and not check_mode:
         role_id = _role_id(client, path)
     return state_result(changed, before, after, role_id=role_id)
+
+
+def run_info(params: dict[str, Any], check_mode: bool, client: Api) -> dict[str, Any]:
+    """Read one AppRole; the bindings stay in the server's notation for a rollback."""
+    del check_mode
+    current = client.get(f"auth/{params['mount']}/role/{params['name']}")
+    role = dict(current or {})
+    return {
+        "changed": False,
+        "exists": current is not None,
+        "role": role,
+        "secret_id_bound_cidrs": as_list(role.get("secret_id_bound_cidrs")),
+        "token_bound_cidrs": as_list(role.get("token_bound_cidrs")),
+    }
 
 
 def _secret_id_body(params: dict[str, Any]) -> dict[str, Any]:
